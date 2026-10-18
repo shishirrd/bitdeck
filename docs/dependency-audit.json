@@ -1,0 +1,1 @@
+{"dependencies": [{"name": "pillow", "version": "12.3.0", "vulns": []}, {"name": "pyside6-essentials", "version": "6.12.0", "vulns": []}, {"name": "shiboken6", "version": "6.12.0", "vulns": []}], "fixes": []}

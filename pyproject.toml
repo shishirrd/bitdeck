@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bitdeck-desktop"
+version = "0.1.0"
+description = "A tactile, retro-inspired Windows image workbench."
+requires-python = ">=3.10"
+dependencies = ["PySide6-Essentials>=6.8,<7", "Pillow>=12.1.1,<13"]
+license = {text = "MIT"}
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+bitdeck = "bitdeck.app:main"
+
+[tool.setuptools.packages.find]
+include = ["bitdeck*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
