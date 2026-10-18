@@ -68,6 +68,11 @@ class BoundedWriter:
             raise JobError("Encoded output exceeds the 64 MiB limit.")
         return self.stream.write(data)
 
+    def fileno(self):
+        # Force encoders through write(); exposing a descriptor lets native
+        # Pillow encoders bypass the output byte budget with direct fd writes.
+        raise io.UnsupportedOperation("Direct descriptor writes are disabled")
+
     def __getattr__(self, key):
         return getattr(self.stream, key)
 
@@ -112,6 +117,10 @@ def publish_image(image, folder, stem, fmt, quality=85, before_publish=None):
 
 
 def run_job(job):
+    if isinstance(job, dict):
+        from .documents import OPERATIONS, run_document_job
+        if job.get("operation") in OPERATIONS:
+            return run_document_job(job)
     from PIL import Image, ImageDraw
     if not isinstance(job, dict) or job.get("operation") not in {"inspect", "export"}:
         raise JobError("Invalid job operation.")

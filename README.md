@@ -1,30 +1,52 @@
 # BitDeck
 
-**A compact Windows image workbench with a retro soul.**
+**Drag a file. Press Shift. Drop on an action.**
 
-Tactile controls. An inset display. A queue you can actually read. Inspired by
-classic desktop audio software, built for working with images.
+A Windows file utility inspired by DragShift's cursor workflow and Winamp's
+compact, tactile controls. Images, PDFs and plain text; no Office installation,
+no Word automation, no liquid glass. The image editor is an optional tool.
 
-![BitDeck desktop screenshot](docs/screenshot.png)
+![BitDeck PDF actions at the cursor](docs/cursor-menu.png)
 
-## What works in v0.1
+## The workflow
 
-- Drop PNG, JPEG and WebP files onto the workbench, or press **Ctrl+O**.
-- Convert formats, set compression quality, and resize without upscaling.
-- Draw solid black redaction boxes, or enter box coordinates using **Add by %**.
-- Strip metadata on every export; preserve the original file.
-- Inspect files and export through separate, short-lived worker processes.
-- Queue exports with captured settings; cancel active and waiting exports.
-- Open output folders and undo an export through the Recycle Bin.
+1. Start BitDeck. It lives in the system tray.
+2. Start dragging a supported file in Explorer or on the desktop.
+3. Press **Shift** while holding the mouse button. Move into the wheel that
+   appears near your cursor, then drop onto an action.
+4. Tap **Shift** again while dragging for **Tools**.
+5. The result card reports output sizes and offers **Open folder** and **Undo**.
 
-This is an early source prototype. PDF/Word tools, installers, skins and signed
-binary releases are not implemented.
+Drop in the center to choose afterward. Escape closes the menu. In click mode,
+Tab switches Convert/Tools, arrows select, and Enter applies. Double-click the
+tray icon to choose files without dragging. One drop must contain one file family.
+
+## Implemented in v0.2
+
+| Input | Convert | Tools |
+| --- | --- | --- |
+| PNG, JPEG, WebP | PNG, JPEG, WebP; one or several images to one PDF | Compress, resize, opaque redaction in the optional editor, remove image metadata |
+| PDF | PNG/JPEG per page; existing text layer to UTF-8 TXT | Lossless compression, split, rotate, merge in drop order, AES-256 protection, extract embedded images, clear document Info/XMP |
+| Text | Paginated PDF; normalize to UTF-8 TXT | The same two plain-text operations |
+
+Text suffixes include `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.log`, `.xml`,
+`.html`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.toml`, `.css`, `.js`, `.ts`, `.py`
+and `.sql`. Supported encodings: UTF-8, BOM-marked UTF-16 and Windows-1252.
+Markup/code is printed literally; nothing is executed or fetched.
+
+PDF/text outputs are ordinary interoperable files. This does not mean arbitrary
+inputs, perfect layout reconstruction, every script/encoding, or OCR. Scanned PDFs
+may yield no text. Text PDFs embed Windows Consolas when available; font coverage
+and complex-script shaping are limited. Lossless PDF compression may not reduce
+size. Clearing document metadata is not full PDF sanitization.
+
+**Word files are deliberately excluded.** HEIC/AVIF/TIFF inputs, crop/annotation
+editors, OCR, skins, autostart registration and signed installers are not included.
+This prototype does not claim full DragShift feature parity.
 
 ## Run on Windows
 
-Requires **64-bit Python 3.10+**. Tested locally on Windows with Python 3.10
-on a local NTFS workspace. The lock file contains Windows
-x64 wheels; other platforms and architectures are not part of this release.
+Requires **64-bit Python 3.10+**. The lock files contain Windows x64 wheels.
 
 ```powershell
 python -m venv .venv
@@ -32,76 +54,72 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m bitdeck
 ```
 
-Or run `setup.cmd`, followed by `launch.cmd`. Add files, select a row, tune the
-output rack, and click **Queue export** (**Ctrl+Enter**). Add several files and
-queue each with its own settings while another export is processing.
+Or run `setup.cmd`, then `launch.cmd`. `--quiet` starts without a welcome card;
+`--workbench` opens the optional image editor. Passing file paths opens their
+cursor menu and hands off to an existing instance when available.
 
-Outputs go in a `BitDeck` folder beside each source unless you choose a different
-destination. Repeated exports receive numbered names. Input bytes determine the
-decoder; renaming an unsupported document to `.jpg` does not make it supported.
+The tray's **Explorer / Send to integration** command offers explicit per-user
+registration/removal. On Windows 11, look under **Show more options**. Registration
+is not installed automatically and needs no administrator privileges. Keep the
+source installation at its registered path; remove integration before moving it.
 
-## Safety properties and limits
+Outputs default to a `BitDeck` folder beside the original. Collisions get numbered
+names. Originals are kept. The image editor has its own output-folder override.
+Undo uses only the Recycle Bin; unavailable recycling or changed file identity
+leaves the output in place.
 
-- Exclusive temporary files and atomic **no-replace** publication prevent output
-  name collisions from silently overwriting files. Windows uses a same-directory
-  rename that refuses existing destinations; there is no overwriting fallback.
-- Original input bytes are never modified by the conversion code.
-- PNG/JPEG/WebP exports are rebuilt from pixels without original metadata.
-- Redaction replaces selected pixels with opaque black before resize/encoding.
-  Lossy encoders may change boundary colors; use PNG when exact pixels matter.
-- Undo never falls back to permanent deletion. It refuses if a recorded output's
-  file identity/size/modification time has changed.
-- Inputs and encoded outputs are capped at **64 MiB**; images at **40 MP** and
-  **16,384 px** per side. Animated files are rejected.
-- Workers have a **90-second wall-clock deadline**. On Windows, a Job Object
-  limits each worker to **768 MiB committed memory**, **60 seconds of CPU time**,
-  two processes (including Python's virtual-environment launcher), and termination
-  when its job handle closes. Failure to attach
-  limits prevents processing. Inspection and export can run concurrently, each
-  with its own limits.
+## Verification status
 
-**Process separation and resource limits are not a security sandbox.** Workers
-run with your account's file/network permissions. Qt decodes the worker-generated
-preview in the UI. See [SECURITY.md](SECURITY.md) for the threat model and remaining
-risks. No claim of safety against arbitrary malicious files is made.
+Automated processing and Qt integration tests run real worker processes and verify
+outputs. Cursor checks submit native Qt drag/drop events and verify copy-only
+acceptance, action routing, output generation and the Shift polling state machine.
+**They are not a live Explorer/OLE drag test.**
 
-Cancelling or a forced exit can leave an incomplete `.bitdeck-*.part` file in the
-destination, or a completed output if publication already happened. These files
-are not automatically removed after forced termination, to avoid deleting a file
-owned by another job. Review the destination before retrying. No output is opened
-automatically. The app makes no intentional network requests and has no telemetry.
+The development sandbox denies the user-only named pipe, so live single-instance
+handoff and Explorer/Send to registration remain unverified here. Startup reports
+an error if it cannot establish the instance channel. Those checks require a
+normal interactive Windows session. See [validation](docs/validation.md).
+
+## Safeguards and limits
+
+Conversions use short-lived workers with Windows Job Object memory/CPU limits,
+a 90-second deadline, bounded JSON messages, and fail-closed limit attachment.
+The worker allowance is 768 MiB committed memory per process, 60 seconds CPU and
+two processes including Python's venv launcher. These are resource limits,
+**not a filesystem/network security sandbox**.
+
+Inputs/outputs are capped at 64 MiB; document outputs share a 64 MiB job budget.
+Images: 40 MP / 16,384 px per side, single-frame only. PDFs: 200 pages; raster
+export: 50 pages. Text: 2 MiB / 500,000 characters. Combined inputs: 50 files.
+
+Exclusive temporary files and atomic no-replace publication avoid overwrites.
+Ordinary document failures roll back their outputs; forced cancellation may leave
+partial/completed outputs or temporary files. Image exports rebuild metadata-free
+pixels; redaction uses opaque black boxes. Only editor exports bind their source
+to the inspected SHA-256. The app has no intentional network requests or telemetry.
+See [SECURITY.md](SECURITY.md).
 
 ## Development
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-lock.txt
 New-Item -ItemType Directory -Force work | Out-Null
-.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=work/test-data
 ```
 
-Tests cover concurrent output collisions, publication races, temporary-file
-cleanup on ordinary failure, input/output budgets, redaction, orientation,
-metadata removal, worker lifecycle, cancellation, timeouts and Windows Job Object
-termination. CI runs on Windows. See [architecture](docs/architecture.md).
+Windows CI is configured with pinned actions; it has not run on GitHub because
+publication is paused. See [architecture](docs/architecture.md).
 
-## Design and attribution
+## Attribution and license
 
-Winamp's classic desktop character inspired the compact rack, beveled controls,
-and inset status display. All layouts and visual assets here are original; this
-project is not affiliated with Winamp. DragShift inspired the file-tool concept
-and the decision to investigate output safety. No DragShift source was copied.
+Original code/artwork are MIT. Winamp inspires the visual character; DragShift
+inspires the cursor interaction. Neither project is affiliated with BitDeck, and
+no DragShift source was copied. Dependencies retain their own licenses. Future
+binary releases must include applicable notices and satisfy their terms.
 
-BitDeck uses Qt for Python (PySide6 Essentials, available under LGPLv3/GPLv3 or
-commercial terms) and Pillow (HPND). This repository's original code is MIT.
-Any future binary distribution must include applicable third-party notices and
-fulfill its dependencies' license obligations. Dependencies are not vendored here.
+## Next steps
 
-## Roadmap
-
-- [x] Image workbench and per-file queue
-- [x] Worker resource limits and collision-safe output
-- [x] Solid redaction and metadata-free export
-- [ ] Restricted Windows worker token / filesystem and network isolation
-- [ ] A signed installer and reproducible binary release pipeline
-- [ ] PDF tools in separately reviewed workers
-- [ ] Skins, saved presets and richer batch controls
+- Live Explorer/OLE and shell integration validation
+- Input PDF password prompt, richer image formats and editing tools
+- Restricted worker filesystem/network access
+- Signed installer, binary provenance, presets and skins

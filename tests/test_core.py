@@ -75,6 +75,13 @@ def test_output_limit_cleans_temporary_file(source, monkeypatch):
     assert list((source.parent / "out").iterdir()) == []
 
 
+def test_jpeg_native_encoder_cannot_bypass_output_limit(source, monkeypatch):
+    monkeypatch.setattr(core, "MAX_OUTPUT", 20)
+    with pytest.raises(core.JobError, match="output exceeds"):
+        core.run_job(request(source, format="JPEG"))
+    assert list((source.parent / "out").iterdir()) == []
+
+
 def test_input_limit(source, monkeypatch):
     monkeypatch.setattr(core, "MAX_INPUT", 12)
     with pytest.raises(core.JobError, match="Input exceeds"):

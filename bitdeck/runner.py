@@ -36,7 +36,10 @@ class WorkerRunner(QObject):
         self.failure = None
         process = self.process = QProcess(self)
         process.setWorkingDirectory(str(Path(__file__).resolve().parent.parent))
-        process.setProgram(sys.executable)
+        executable = Path(sys.executable)
+        if executable.name.lower() == "pythonw.exe":
+            executable = executable.with_name("python.exe")
+        process.setProgram(str(executable))
         process.setArguments(["-m", "bitdeck.worker"])
 
         def started():

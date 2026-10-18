@@ -12,17 +12,24 @@ private-reporting availability is assumed by this repository.
 
 ## Threat model
 
-The intended user is a standard Windows desktop user processing personal images.
-Input image bytes and metadata are untrusted. The app restricts decoder formats,
-bytes, pixel dimensions, frame count and runtime. It passes structured JSON over
-private child-process stdin/stdout, not a shared listening socket or shell.
+The intended user is a standard Windows desktop user processing images, PDFs and
+plain text. Input bytes and metadata are untrusted. The app restricts decoder
+formats, bytes, pixel dimensions, frame/page counts, output counts and runtime.
+Conversion jobs use bounded JSON over private child-process stdin/stdout.
 Encoding and source parsing occur in a worker. Workers receive a Windows Job
 Object before the UI sends the request that enables parsing.
 
 The parent bounds reply size and elapsed time. Each worker bounds its input and
-output bytes, rebuilds metadata-free pixels and publishes through an exclusive
+output bytes, rebuilds metadata-free image pixels and publishes through an exclusive
 temporary file plus no-replace Windows rename (hard link on POSIX). Path names are derived from source file
 names rather than document-controlled metadata. Results are shown as plain text.
+
+Single-instance handoff uses a QLocalServer named pipe with UserAccessOption.
+It caps messages at 128 KiB, connections at 16, files at 50 and connection time
+at 1.5 seconds. Data can open a menu, never choose an action or execute code.
+The pipe's ACL behavior is unverified outside this sandbox, where creation is
+denied. Drag/drop explicitly uses CopyAction. Mouse/Shift/Escape state is polled;
+normal typing is not recorded.
 
 ## Out of scope / residual risks
 
@@ -34,7 +41,7 @@ names rather than document-controlled metadata. Results are shown as plain text.
 - The app does not defend against a malicious process running as the same user,
   hostile destination-directory symlink/junction replacement, DLL injection,
   modified Python environments, or an administrator.
-- The UI binds exports to the SHA-256 of the inspected source bytes. A changed
+- The optional image editor binds exports to the SHA-256 of inspected bytes. A changed
   source is rejected until re-inspected. Still inspect exported redactions before
   sharing. Direct core callers can omit the optional fingerprint check.
 - Undo's identity check reduces accidental replacement, but is not an atomic
@@ -43,8 +50,13 @@ names rather than document-controlled metadata. Results are shown as plain text.
   temporary file or a finished output. The original remains untouched.
 - Network/cloud filesystems may have different publication semantics. A normal
   local NTFS folder is the tested destination. POSIX publication requires hard links.
+- PDF Info/XMP removal does not sanitize arbitrary PDF content, annotations,
+  attachments, scripts or visible identifiers. Other PDF actions may preserve
+  active page content. PDF outputs are not automatically opened.
+- Text is printed literally, never interpreted as HTML/Markdown/source code.
+  No external resources are fetched. Font coverage and complex scripts are limited.
 - Metadata removal does not anonymize visible content or file names, scrub
-  filesystem timestamps, or remove metadata from the original file.
+  filesystem timestamps, or remove metadata from original files.
 - Dependency pins/hashes improve repeatability, not immunity to dependency flaws.
   No binaries are signed or distributed in this initial prototype.
 

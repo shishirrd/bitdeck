@@ -186,13 +186,15 @@ class Canvas(QWidget):
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
-            event.acceptProposedAction()
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
 
     def dropEvent(self, event):
         files = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
         if files:
             self.filesDropped.emit(files)
-            event.acceptProposedAction()
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
 
 
 @dataclass
@@ -209,7 +211,7 @@ class Item:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("BitDeck · image workbench")
+        self.setWindowTitle("BitDeck · optional image editor")
         self.resize(1180, 880)
         self.setMinimumSize(1000, 780)
         self.setAcceptDrops(True)
@@ -233,10 +235,11 @@ class MainWindow(QMainWindow):
         brand = label("BITDECK", "section")
         brand.setStyleSheet("font: bold 26px Consolas; color: #e3e6df; letter-spacing: 5px;")
         top.addWidget(brand)
-        top.addWidget(label("IMAGE WORKBENCH   /   VOL. 01", "dim"))
+        top.addWidget(label("OPTIONAL IMAGE EDITOR", "dim"))
         top.addStretch()
         top.addWidget(label("LOCAL FILES. HANDS-ON CONTROL.", "section"))
-        top.addWidget(label("v0.1.0", "dim"))
+        from . import __version__
+        top.addWidget(label("v" + __version__, "dim"))
         layout.addLayout(top)
 
         body = QHBoxLayout()
@@ -606,11 +609,13 @@ class MainWindow(QMainWindow):
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
-            event.acceptProposedAction()
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
 
     def dropEvent(self, event):
         self.add_files([url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()])
-        event.acceptProposedAction()
+        event.setDropAction(Qt.CopyAction)
+        event.accept()
 
     def closeEvent(self, event):
         if self.runner.busy and QMessageBox.question(self, "Stop processing?", "Close BitDeck and stop pending work?\nCompleted outputs are kept.") != QMessageBox.Yes:

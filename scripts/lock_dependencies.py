@@ -4,10 +4,13 @@ from pathlib import Path
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = {"Pillow": "12.3.0", "PySide6-Essentials": "6.12.0", "shiboken6": "6.12.0"}
+RUNTIME = {"Pillow": "12.3.0", "PySide6-Essentials": "6.12.0", "shiboken6": "6.12.0",
+           "pypdf": "6.21.1", "pypdfium2": "5.14.0", "reportlab": "4.5.1",
+           "cryptography": "50.0.2", "cffi": "2.1.1", "pycparser": "3.11",
+           "charset-normalizer": "3.5.2", "typing_extensions": "4.16.0"}
 DEV = {"pytest": "9.1.1", "colorama": "0.4.6", "exceptiongroup": "1.3.1",
        "iniconfig": "2.3.1", "packaging": "26.3", "pluggy": "1.7.0",
-       "Pygments": "2.21.0", "tomli": "2.5.0", "typing_extensions": "4.16.0"}
+       "Pygments": "2.21.0", "tomli": "2.5.0"}
 
 
 def requirement(name, version):
