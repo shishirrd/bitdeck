@@ -1,0 +1,48 @@
+{
+  "ok": true,
+  "frozen": true,
+  "checks": [
+    {
+      "operation": "inspect",
+      "ok": true
+    },
+    {
+      "operation": "export",
+      "ok": true
+    },
+    {
+      "operation": "text_to_pdf",
+      "ok": true
+    },
+    {
+      "operation": "pdf_to_png",
+      "ok": true
+    },
+    {
+      "operation": "pdf_to_text",
+      "ok": true
+    },
+    {
+      "operation": "pdf_merge",
+      "ok": true
+    },
+    {
+      "operation": "pdf_split",
+      "ok": true
+    },
+    {
+      "operation": "pdf_protect",
+      "ok": true
+    },
+    {
+      "operation": "import_theme",
+      "ok": true
+    },
+    {
+      "operation": "skin_apply_and_reset",
+      "ok": true
+    }
+  ],
+  "executable_sha256": "399a317ad8a8ba1d46db4170b2a0e351ce0510d6540459c3126a105794a483b7",
+  "path_policy": "Windows system directories only; Python environment overrides cleared"
+}

@@ -35,7 +35,7 @@ def main():
     from reportlab.pdfgen.canvas import Canvas
     (ROOT / "work").mkdir(exist_ok=True)
     application = create_application()
-    desktop = Desktop(application, single_instance=False)
+    desktop = Desktop(application, single_instance=False, theme_cache=ROOT / "work" / "desktop-test-theme.json")
     desktop.watcher.timer.stop()
     try:
         with tempfile.TemporaryDirectory(dir=ROOT / "work") as folder:

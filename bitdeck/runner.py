@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 from .limits import WindowsJob
 
 MAX_REPLY = 8 * 1024 * 1024
@@ -35,12 +35,23 @@ class WorkerRunner(QObject):
         self.buffer = bytearray()
         self.failure = None
         process = self.process = QProcess(self)
-        process.setWorkingDirectory(str(Path(__file__).resolve().parent.parent))
-        executable = Path(sys.executable)
-        if executable.name.lower() == "pythonw.exe":
-            executable = executable.with_name("python.exe")
-        process.setProgram(str(executable))
-        process.setArguments(["-m", "bitdeck.worker"])
+        if getattr(sys, "frozen", False):
+            # The windowless UI embeds a self-contained console worker. QProcess
+            # supplies private stdio pipes and creates it without a visible console.
+            bundle = Path(sys._MEIPASS)
+            process.setWorkingDirectory(str(bundle))
+            process.setProgram(str(bundle / "BitDeck-worker.exe"))
+            process.setArguments([])
+            environment = QProcessEnvironment.systemEnvironment()
+            environment.insert("PYINSTALLER_RESET_ENVIRONMENT", "1")
+            process.setProcessEnvironment(environment)
+        else:
+            process.setWorkingDirectory(str(Path(__file__).resolve().parent.parent))
+            executable = Path(sys.executable)
+            if executable.name.lower() == "pythonw.exe":
+                executable = executable.with_name("python.exe")
+            process.setProgram(str(executable))
+            process.setArguments(["-m", "bitdeck.worker"])
 
         def started():
             try:

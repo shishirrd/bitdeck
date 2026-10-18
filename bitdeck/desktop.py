@@ -15,6 +15,7 @@ from .radial import CursorMenu
 from .runner import WorkerRunner
 from .trigger import DragWatcher
 from .ipc import InstanceServer, handoff
+from .theming import ThemeManager
 
 
 def tray_icon():
@@ -80,11 +81,12 @@ class ResultCard(QFrame):
 
 
 class Desktop(QObject):
-    def __init__(self, application, single_instance=True):
+    def __init__(self, application, single_instance=True, theme_cache=None):
         super().__init__(application)
         self.application = application
         self.application.setQuitOnLastWindowClosed(False)
         self.menu = CursorMenu()
+        self.themes = ThemeManager(application, self.menu, theme_cache)
         self.menu.actionChosen.connect(self.choose)
         self.menu.browseRequested.connect(self.browse)
         self.watcher = DragWatcher(self)
@@ -106,10 +108,14 @@ class Desktop(QObject):
         context = QMenu()
         context.addAction("Choose files…", self.browse)
         context.addAction("Image editor / batch queue…", self.show_workbench)
+        themes = context.addMenu("Themes")
+        themes.addAction("Import classic Winamp skin (.wsz)…", self.import_skin)
+        themes.addAction("Reset to BitDeck", self.reset_skin)
         enabled = QAction("Drag + Shift enabled", context, checkable=True, checked=True)
         enabled.toggled.connect(lambda value: setattr(self.watcher, "enabled", value))
         context.addAction(enabled)
         context.addAction("Explorer / Send to integration…", self.shell_settings)
+        context.addAction("Third-party licenses…", self.show_licenses)
         context.addAction("Cancel pending actions", self.cancel)
         context.addSeparator()
         context.addAction("Quit BitDeck", self.quit)
@@ -135,7 +141,7 @@ class Desktop(QObject):
         self.cards[0].popup()
 
     def browse(self):
-        paths, _ = QFileDialog.getOpenFileNames(self.menu, "Choose files for BitDeck", "", "Supported files (*.png *.jpg *.jpeg *.webp *.pdf *.txt *.md *.csv *.tsv *.json *.log *.xml *.html *.yaml *.yml *.ini *.cfg *.toml *.css *.js *.py *.sql);;All files (*)")
+        paths, _ = QFileDialog.getOpenFileNames(self.menu, "Choose files for BitDeck", "", "Supported files (*.png *.jpg *.jpeg *.webp *.pdf *.txt *.md *.csv *.tsv *.json *.log *.xml *.html *.yaml *.yml *.ini *.cfg *.toml *.css *.js *.py *.sql *.wsz);;All files (*)")
         if paths:
             self.show_files(paths)
 
@@ -143,7 +149,7 @@ class Desktop(QObject):
         paths = [str(Path(path).resolve()) for path in paths if Path(path).is_file()]
         families = {category(path) for path in paths}
         if not paths or len(paths) > 50 or len(families) != 1 or None in families:
-            self.notify("UNSUPPORTED SELECTION", "Choose 1–50 images, PDFs, or text files from one family. Word documents are not supported.")
+            self.notify("UNSUPPORTED SELECTION", "Choose 1–50 images, PDFs, or text files from one family, or one classic .wsz skin. Word documents are not supported.")
             return
         self.menu.popup(QCursor.pos(), paths, drag=False)
 
@@ -167,7 +173,12 @@ class Desktop(QObject):
             self.workbench.toggle_drawing()
             return
         requests = []
-        if key.startswith("image:") or key in {"compress_image", "resize_image", "clean_image"}:
+        if key == "import_theme":
+            if len(paths) != 1:
+                self.notify("CHOOSE ONE SKIN", "Apply one classic .wsz skin at a time.")
+                return
+            requests = [{"operation": "import_theme", "source": paths[0]}]
+        elif key.startswith("image:") or key in {"compress_image", "resize_image", "clean_image"}:
             edge, quality = 0, 85
             if key == "resize_image":
                 edge, ok = QInputDialog.getInt(self.menu, "Resize copies", "Maximum long edge (pixels):", 1600, 1, 16384)
@@ -227,7 +238,13 @@ class Desktop(QObject):
         operation = self.active["operation"] if self.active else "action"
         self.active = None
         self.tray.setToolTip("BitDeck · drag a file and press Shift")
-        if result["ok"]:
+        if result["ok"] and operation == "import_theme":
+            try:
+                self.themes.apply(result["theme"], persist=True)
+                self.notify("SKIN APPLIED", f"{self.themes.current['name']}\nClassic colors and header artwork adapted for BitDeck.")
+            except (OSError, ValueError) as error:
+                self.notify("THEME SETTINGS", str(error))
+        elif result["ok"]:
             count = len(result.get("outputs", [result["output"]]))
             detail = f"{count} output file(s) · {human_bytes(result['input_bytes'])} → {human_bytes(result['output_bytes'])}\n{Path(result['output']).name}"
             self.notify("SAVED / " + operation.replace("_", " ").upper(), detail, result)
@@ -240,6 +257,26 @@ class Desktop(QObject):
     def cancel(self):
         self.queue.clear()
         self.runner.stop()
+
+    def import_skin(self):
+        path, _ = QFileDialog.getOpenFileName(self.menu, "Import a classic Winamp skin", "", "Winamp classic skin (*.wsz)")
+        if path:
+            self.choose("import_theme", [path])
+
+    def reset_skin(self):
+        try:
+            self.themes.reset()
+            self.notify("DEFAULT THEME", "BitDeck's original colors restored.")
+        except OSError:
+            self.notify("DEFAULT THEME", "Default restored for this session; settings could not be updated.")
+
+    def show_licenses(self):
+        base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+        path = base / "third-party" / "NOTICES.txt"
+        if path.is_file():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        else:
+            self.notify("LICENSES", "Original BitDeck code: MIT. Third-party components retain their own licenses. See README and the distribution's notices.")
 
     def shell_settings(self):
         from .shell import is_installed, install, uninstall

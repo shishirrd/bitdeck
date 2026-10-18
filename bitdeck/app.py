@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGr
     QHeaderView, QAbstractItemView)
 
 from .runner import WorkerRunner
+from .palette import color as theme_color
 
 LIME = "#c4ee70"
 AMBER = "#e8b768"
@@ -93,7 +94,7 @@ class Spectrum(QWidget):
 
     def paintEvent(self, _):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#101610"))
+        painter.fillRect(self.rect(), QColor(theme_color("display")))
         for column, height in enumerate([2, 4, 3, 6, 5, 3, 4, 7, 5, 3, 2, 4]):
             for row in range(height if self.active else 1):
                 painter.fillRect(4 + column * 7, 24 - row * 3, 4, 2,
@@ -136,8 +137,9 @@ class Canvas(QWidget):
 
     def paintEvent(self, _):
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#12171b"))
-        painter.setPen(QColor("#1d252b"))
+        background = QColor(theme_color("display"))
+        painter.fillRect(self.rect(), background)
+        painter.setPen(background.lighter(125) if background.lightness() < 130 else background.darker(110))
         for x in range(0, self.width(), 24):
             painter.drawLine(x, 0, x, self.height())
         for y in range(0, self.height(), 24):
@@ -147,7 +149,7 @@ class Canvas(QWidget):
             painter.setFont(QFont("Consolas", 22))
             painter.drawText(self.rect().adjusted(0, -28, 0, -28), Qt.AlignCenter, "[ DROP IMAGE HERE ]")
             painter.setFont(QFont("Consolas", 10))
-            painter.setPen(QColor("#969fa7"))
+            painter.setPen(QColor(theme_color("accent")))
             painter.drawText(self.rect().adjusted(0, 40, 0, 40), Qt.AlignCenter,
                              "DECODING PREVIEW…" if self.loading else "PNG / JPEG / WEBP  ·  OR SELECT FILES")
             return

@@ -13,6 +13,8 @@ def category(path):
         return "image"
     if extension == ".pdf":
         return "pdf"
+    if extension == ".wsz":
+        return "skin"
     if extension in TEXT_EXTENSIONS:
         return "text"
     return None
@@ -27,6 +29,8 @@ class Action:
 
 def actions_for(family, tools=False):
     groups = {
+        ("skin", False): [("Apply skin", "import_theme", "Import this classic Winamp skin")],
+        ("skin", True): [("Apply skin", "import_theme", "Use its colors and header artwork in BitDeck")],
         ("image", False): [("PNG", "image:PNG", "Lossless image"), ("JPEG", "image:JPEG", "Small, widely compatible"),
                            ("WEBP", "image:WEBP", "Compact web image"), ("PDF", "images_to_pdf", "One PDF from the dropped images")],
         ("image", True): [("Compress", "compress_image", "Save a compressed copy"), ("Resize", "resize_image", "Set the maximum long edge"),

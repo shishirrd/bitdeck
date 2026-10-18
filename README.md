@@ -21,7 +21,7 @@ Drop in the center to choose afterward. Escape closes the menu. In click mode,
 Tab switches Convert/Tools, arrows select, and Enter applies. Double-click the
 tray icon to choose files without dragging. One drop must contain one file family.
 
-## Implemented in v0.2
+## Implemented in v0.3
 
 | Input | Convert | Tools |
 | --- | --- | --- |
@@ -41,12 +41,40 @@ and complex-script shaping are limited. Lossless PDF compression may not reduce
 size. Clearing document metadata is not full PDF sanitization.
 
 **Word files are deliberately excluded.** HEIC/AVIF/TIFF inputs, crop/annotation
-editors, OCR, skins, autostart registration and signed installers are not included.
+editors, OCR, autostart registration and signed installers are not included.
 This prototype does not claim full DragShift feature parity.
 
-## Run on Windows
+## Windows users: run the executable
 
-Requires **64-bit Python 3.10+**. The lock files contain Windows x64 wheels.
+Double-click the portable **BitDeck.exe**. Python, Qt, image/PDF libraries and the
+conversion worker are bundled. **No Python or pip installation is required.**
+The executable lives in the local `windows/` build folder and is supplied alongside
+the source for review. A public GitHub download release has not been published.
+It is currently an unsigned Windows x64 prototype, not a signed installer.
+
+The app starts in the tray. Its runtime is unpacked into temporary storage while
+running. Keep the executable at a stable path if you enable Explorer integration.
+
+## Classic Winamp skins (.wsz)
+
+Use **tray menu → Themes → Import classic Winamp skin (.wsz)**. You can also drop
+a `.wsz` onto the cursor wheel and choose **Apply skin**. The colors/header artwork
+update immediately, are remembered for the next start, and can be reset through
+**Themes → Reset to BitDeck**. Try the original [Voltage Blue demo skin](skins/Voltage-Blue.wsz).
+
+![Voltage Blue .wsz adaptation](docs/skin-voltage-blue.png)
+
+BitDeck adapts classic `MAIN.BMP`, `TITLEBAR.BMP` and `PLEDIT.TXT` to its own layout.
+This is not a pixel-perfect rendering of Winamp's player windows. Modern `.wal`
+skins, custom cursors, bitmap-font emulation, plugins and skin scripts are not
+supported. ZIP members are never extracted; selected bitmaps/colors are parsed in
+a limited worker and converted to safe, bounded PNG/color data. See SECURITY.md.
+Only an original MIT demo skin is distributed; imported skins retain their licenses.
+
+## Developers: run from source
+
+Requires **64-bit Python 3.10+ for development only**. Lock files contain Windows
+x64 wheels. To build the standalone executable, see [Windows build instructions](docs/building-windows.md).
 
 ```powershell
 python -m venv .venv
@@ -122,4 +150,4 @@ binary releases must include applicable notices and satisfy their terms.
 - Live Explorer/OLE and shell integration validation
 - Input PDF password prompt, richer image formats and editing tools
 - Restricted worker filesystem/network access
-- Signed installer, binary provenance, presets and skins
+- Signed installer, binary provenance, presets and deeper skin mapping

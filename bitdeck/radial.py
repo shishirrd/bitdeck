@@ -3,10 +3,11 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
 from .actions import Action, actions_for, category
+from .palette import color
 
 
 class CursorMenu(QWidget):
@@ -26,6 +27,8 @@ class CursorMenu(QWidget):
         self.hover = -1
         self.drag_mode = True
         self.actions = []
+        self.header_texture = QPixmap()
+        self.skin_name = "BitDeck"
 
     def popup(self, position=None, paths=None, drag=True):
         self.paths = paths or []
@@ -68,16 +71,19 @@ class CursorMenu(QWidget):
     def paintEvent(self, _):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#252930"))
-        painter.setPen(QPen(QColor("#6b737e"), 1))
+        painter.fillRect(self.rect(), QColor(color("panel")))
+        if not self.header_texture.isNull():
+            painter.drawPixmap(self.rect().adjusted(1, 1, -1, -(self.height() - 40)), self.header_texture)
+            painter.fillRect(QRectF(10, 8, 458, 25), QColor(color("display")))
+        painter.setPen(QPen(QColor(color("border")), 1))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         painter.setFont(QFont("Consolas", 12, QFont.Bold))
-        painter.setPen(QColor("#dce1d6"))
+        painter.setPen(QColor(color("accent") if not self.header_texture.isNull() else color("text")))
         painter.drawText(QRectF(18, 9, 450, 25), Qt.AlignLeft, "B I T D E C K   /   DROP CONTROL")
-        painter.setPen(QColor("#959fa9"))
+        painter.setPen(QColor(color("muted")))
         painter.drawText(QRectF(477, 9, 28, 25), Qt.AlignCenter, "×")
-        painter.fillRect(QRectF(16, 42, 488, 30), QColor("#10160f"))
-        painter.setPen(QColor("#c4ee70"))
+        painter.fillRect(QRectF(16, 42, 488, 30), QColor(color("display")))
+        painter.setPen(QColor(color("accent")))
         text = " / ".join([self.family.upper() if self.family else "WAITING FOR FILE", "TOOLS" if self.tools else "CONVERT"])
         painter.drawText(QRectF(24, 42, 475, 30), Qt.AlignVCenter, text)
         if self.actions:
@@ -97,33 +103,34 @@ class CursorMenu(QWidget):
                 path.arcTo(inner, start - span + 1, span - 2)
                 path.closeSubpath()
                 selected = index == self.hover
-                painter.fillPath(path, QColor("#c4ee70" if selected else "#363d46"))
-                painter.setPen(QPen(QColor("#efffd1" if selected else "#707987"), 1))
+                painter.fillPath(path, QColor(color("accent") if selected else color("control")))
+                painter.setPen(QPen(QColor(color("text") if selected else color("border")), 1))
                 painter.drawPath(path)
                 mid = math.radians(start - span / 2)
                 point = center + QPointF(132 * math.cos(mid), -132 * math.sin(mid))
                 painter.setFont(QFont("Consolas", 11, QFont.Bold))
-                painter.setPen(QColor("#14200d" if selected else "#e1e4dd"))
+                selected_text = "#101010" if QColor(color("accent")).lightness() > 130 else "#ffffff"
+                painter.setPen(QColor(selected_text if selected else color("text")))
                 painter.drawText(QRectF(point.x() - 62, point.y() - 25, 124, 50), Qt.AlignCenter | Qt.TextWordWrap, action.title)
-            painter.setPen(QColor("#e8b768"))
+            painter.setPen(QColor(color("secondary")))
             painter.setFont(QFont("Consolas", 10))
             painter.drawText(QRectF(187, 210, 146, 80), Qt.AlignCenter | Qt.TextWordWrap,
                              f"{len(self.paths)} FILE{'S' if len(self.paths) != 1 else ''}\n\nDROP ON ACTION" if self.drag_mode else "CHOOSE\nAN ACTION")
         else:
-            painter.setPen(QColor("#c4ee70"))
+            painter.setPen(QColor(color("accent")))
             painter.setFont(QFont("Consolas", 18))
             painter.drawText(QRectF(35, 150, 450, 120), Qt.AlignCenter | Qt.TextWordWrap,
                              "DRAG A FILE\nINTO THE MENU" if self.drag_mode else "DROP A FILE\nOR CLICK TO BROWSE")
             painter.setFont(QFont("Consolas", 11))
-            painter.setPen(QColor("#a1abb4"))
+            painter.setPen(QColor(color("muted")))
             painter.drawText(QRectF(35, 290, 450, 40), Qt.AlignCenter, "IMAGES  /  PDF  /  TEXT")
         hint = self.actions[self.hover].hint if 0 <= self.hover < len(self.actions) else "Tap Shift / Tab to switch Convert and Tools"
         painter.setFont(QFont("Segoe UI", 10))
-        painter.setPen(QColor("#c2c7c9"))
+        painter.setPen(QColor(color("text")))
         painter.drawText(QRectF(20, 438, 480, 32), Qt.AlignCenter | Qt.TextWordWrap, hint)
         painter.setFont(QFont("Consolas", 9))
-        painter.setPen(QColor("#919ba4"))
-        painter.drawText(QRectF(20, 475, 480, 18), Qt.AlignCenter, "ORIGINAL KEPT  /  LOCAL PROCESSING  /  ESC TO CLOSE")
+        painter.setPen(QColor(color("muted")))
+        painter.drawText(QRectF(20, 475, 480, 18), Qt.AlignCenter, f"{self.skin_name[:24].upper()}  /  LOCAL FILES  /  ESC TO CLOSE")
 
     def mouseMoveEvent(self, event):
         self.hover = self.index_at(event.position())

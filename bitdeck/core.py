@@ -118,6 +118,12 @@ def publish_image(image, folder, stem, fmt, quality=85, before_publish=None):
 
 def run_job(job):
     if isinstance(job, dict):
+        if job.get("operation") == "import_theme":
+            from .skins import parse_wsz
+            source = job.get("source")
+            if not isinstance(source, str) or not source or len(source) > 32_000:
+                raise JobError("Choose a classic .wsz skin file.")
+            return parse_wsz(source)
         from .documents import OPERATIONS, run_document_job
         if job.get("operation") in OPERATIONS:
             return run_document_job(job)

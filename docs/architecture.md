@@ -14,6 +14,9 @@ flowchart TD
     Worker --> Images[Pillow images]
     Worker --> PDF[pypdf edits / PDFium render and text]
     Worker --> Text[Literal text / ReportLab PDF]
+    Worker --> Skin[Bounded WSZ parsing / rebuilt PNG and hex colors]
+    Skin --> Themes[ThemeManager / local cache / reset]
+    Themes --> Wheel
     Images --> Publish[Exclusive temp + no-replace publication]
     PDF --> Publish
     Text --> Publish
@@ -38,3 +41,13 @@ path values as environment data instead of interpolating executable source.
 Resource limits are not filesystem/network isolation. Normal document errors
 roll back job outputs; forced termination can leave outputs or temporary files.
 See SECURITY.md and validation.md for tested boundaries.
+
+The Windows build freezes the worker separately, embeds it into one windowless
+UI executable, and starts it using QProcess pipes. `runner.py` selects the bundled
+worker when frozen; it never asks an end user to install Python. `packaged_check.py`
+checks that actual frozen path. See building-windows.md.
+
+`skins.py` parses .wsz only in workers; `palette.py` defines allowed theme roles;
+`theming.py` validates and applies the sanitized colors/header and persists a small
+cache. The theme stylesheet is generated from known built-in tokens, never skin
+source. Both painted cursor actions and Qt controls use the adapted palette.

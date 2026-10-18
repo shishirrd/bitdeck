@@ -2,6 +2,10 @@
 
 BitDeck is a prototype. Source review and regression tests do not certify it safe.
 
+The portable executable bundles Python and dependencies; no user-installed Python
+is required. It is unsigned. The worker remains a separate resource-limited
+process embedded in the outer executable, rather than running conversion in the UI.
+
 ## Report an issue
 
 Do not attach confidential files or working exploit payloads to public issues.
@@ -23,6 +27,15 @@ The parent bounds reply size and elapsed time. Each worker bounds its input and
 output bytes, rebuilds metadata-free image pixels and publishes through an exclusive
 temporary file plus no-replace Windows rename (hard link on POSIX). Path names are derived from source file
 names rather than document-controlled metadata. Results are shown as plain text.
+
+Classic .wsz skins are treated as untrusted ZIP input. The importer limits archive
+bytes (8 MiB), expanded sizes (24 MiB), member count (128), individual members
+(4 MiB), bitmap dimensions (1024×1024) and suspicious compression ratios. It rejects
+unsafe paths, symlinks, encrypted and ambiguous duplicate assets. No extraction,
+scripts, plugins, embedded fonts or cursors are used. Only selected BMP assets and
+hex colors are consumed in a worker; a rebuilt PNG header and validated role
+colors return to Qt. The cache caps bytes, checks PNG IHDR dimensions before Qt
+decoding and never accepts raw QSS, executable code or arbitrary resource URLs.
 
 Single-instance handoff uses a QLocalServer named pipe with UserAccessOption.
 It caps messages at 128 KiB, connections at 16, files at 50 and connection time
@@ -58,7 +71,7 @@ normal typing is not recorded.
 - Metadata removal does not anonymize visible content or file names, scrub
   filesystem timestamps, or remove metadata from original files.
 - Dependency pins/hashes improve repeatability, not immunity to dependency flaws.
-  No binaries are signed or distributed in this initial prototype.
+  The local portable binary is unsigned; it has not been independently reviewed.
 
 ## Release checklist
 

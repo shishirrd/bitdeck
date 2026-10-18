@@ -11,6 +11,9 @@ RUNTIME = {"Pillow": "12.3.0", "PySide6-Essentials": "6.12.0", "shiboken6": "6.1
 DEV = {"pytest": "9.1.1", "colorama": "0.4.6", "exceptiongroup": "1.3.1",
        "iniconfig": "2.3.1", "packaging": "26.3", "pluggy": "1.7.0",
        "Pygments": "2.21.0", "tomli": "2.5.0"}
+BUILD = {"pyinstaller": "6.22.3", "pyinstaller-hooks-contrib": "2026.8",
+         "altgraph": "0.17.5", "pywin32-ctypes": "0.2.3", "pefile": "2024.8.26",
+         "setuptools": "84.0.0"}
 
 
 def requirement(name, version):
@@ -29,4 +32,6 @@ if __name__ == "__main__":
     (ROOT / "requirements-lock.txt").write_text(runtime, encoding="utf-8")
     development = "# Includes runtime and test dependencies for Python 3.10 on Windows x64.\n-r requirements-lock.txt\n" + "".join(requirement(name, version) for name, version in DEV.items())
     (ROOT / "requirements-dev-lock.txt").write_text(development, encoding="utf-8")
-    print("Wrote runtime and development lock files.")
+    build = "# Build toolchain used for this local prototype.\n-r requirements-dev-lock.txt\n" + "".join(requirement(name, version) for name, version in BUILD.items())
+    (ROOT / "requirements-build-lock.txt").write_text(build, encoding="utf-8")
+    print("Wrote runtime, development and build lock files.")

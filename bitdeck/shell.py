@@ -10,6 +10,8 @@ KEY = r"Software\Classes\*\shell\BitDeck"
 
 def command():
     executable = Path(sys.executable)
+    if getattr(sys, "frozen", False):
+        return f'"{executable}" "%1"'
     windowless = executable.with_name("pythonw.exe")
     if windowless.exists():
         executable = windowless
@@ -39,9 +41,11 @@ def install():
     if executable.with_name("pythonw.exe").exists():
         executable = executable.with_name("pythonw.exe")
     send_to = Path(os.environ["APPDATA"]) / "Microsoft/Windows/SendTo/BitDeck.lnk"
+    arguments = "" if getattr(sys, "frozen", False) else f'"{ROOT / "run_bitdeck.py"}"'
+    working = executable.parent if getattr(sys, "frozen", False) else ROOT
     environment = dict(os.environ, BITDECK_SHORTCUT=str(send_to), BITDECK_PYTHON=str(executable),
-                       BITDECK_SCRIPT=str(ROOT / "run_bitdeck.py"), BITDECK_ROOT=str(ROOT))
-    script = "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:BITDECK_SHORTCUT); $s.TargetPath = $env:BITDECK_PYTHON; $s.Arguments = [char]34 + $env:BITDECK_SCRIPT + [char]34; $s.WorkingDirectory = $env:BITDECK_ROOT; $s.Save()"
+                       BITDECK_ARGS=arguments, BITDECK_ROOT=str(working))
+    script = "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:BITDECK_SHORTCUT); $s.TargetPath = $env:BITDECK_PYTHON; $s.Arguments = $env:BITDECK_ARGS; $s.WorkingDirectory = $env:BITDECK_ROOT; $s.Save()"
     powershell = Path(os.environ.get("WINDIR", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
                    env=environment, check=True, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
