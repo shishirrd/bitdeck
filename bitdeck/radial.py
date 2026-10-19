@@ -276,7 +276,15 @@ class CursorMenu(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.scale(self.width() / 560, self.height() / 580)
         painter.setOpacity(self._reveal)
-        # Floating surfaces: desktop remains visible between the rounded wedges.
+        # A continuous tinted backing quiets the desktop behind the wheel.
+        # Keep only the outside corners clear; controls retain full contrast.
+        backing = QColor(color('panel'))
+        backing.setAlpha(238)
+        outline = QColor(color('border'))
+        outline.setAlpha(180)
+        painter.setPen(QPen(outline, 1))
+        painter.setBrush(backing)
+        painter.drawRoundedRect(QRectF(8, 8, 544, 564), 26, 26)
         painter.drawPixmap(0, 0, self._shadow)
         painter.setPen(QPen(blend(color('border'), '#ffffff', .15), 1))
         painter.setBrush(QColor(color('panel')))
