@@ -33,6 +33,15 @@ def main():
     old_hook = sys.excepthook
     sys.excepthook = lambda kind, error, tb: errors.append(str(error))
     try:
+        desktop.notify('BITDECK IS READY', 'Drag an image, PDF or text file in Explorer. Press Shift while dragging, then drop on an action. All actions are visible on the wheel. Drop in the center to choose after releasing.\n\nDouble-click the tray icon to choose files. The image editor is optional.')
+        app.processEvents()
+        card = desktop.cards[0]
+        snapshot = card.grab().toImage()
+        assert snapshot.pixelColor(8, card.height() // 2).alpha() == 255
+        assert snapshot.pixelColor(0, 0).alpha() == 0
+        assert card.detail.height() >= card.detail.heightForWidth(card.detail.width())
+        assert card.detail.geometry().bottom() < card.height() - 10
+        card.grab().save('docs/tray-card.png')
         with tempfile.TemporaryDirectory(dir="work") as folder:
             root = Path(folder).resolve()
             from PIL import Image

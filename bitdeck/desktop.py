@@ -4,8 +4,8 @@ from pathlib import Path
 import sys
 import subprocess
 
-from PySide6.QtCore import QFile, QObject, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QFile, QObject, QRectF, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                              QMenu, QMessageBox, QPushButton, QSystemTrayIcon, QVBoxLayout, QProgressBar)
 
@@ -18,6 +18,7 @@ from .ipc import InstanceServer, handoff
 from .theming import ThemeManager
 from .motion import show_gently
 from .action_sheet import ActionSheet
+from .palette import color
 
 
 def tray_icon():
@@ -40,6 +41,7 @@ class ResultCard(QFrame):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedWidth(420)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
         heading = QHBoxLayout()
         heading_text = {"PROCESSING": "Processing", "QUEUE FINISHED": "Batch complete", "ACTION STOPPED": "Action stopped", "SKIN APPLIED": "Theme applied"}.get(title, "Saved" if title.startswith("SAVED /") else title)
         heading.addWidget(label(heading_text, "resultTitle"), 1)
@@ -60,7 +62,20 @@ class ResultCard(QFrame):
             layout.addLayout(row)
         self.adjustSize()
 
+    def paintEvent(self, event):
+        # Paint explicitly: a translucent top-level QFrame subclass can leave
+        # its stylesheet background unpainted on Windows.
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(QColor(color('border')), 1))
+        painter.setBrush(QColor(color('panel')))
+        painter.drawRoundedRect(QRectF(self.rect()).adjusted(.5, .5, -.5, -.5), 16, 16)
+
     def popup(self):
+        self.ensurePolished()
+        self.layout().activate()
+        self.detail.setMinimumHeight(self.detail.heightForWidth(self.detail.width()))
+        self.adjustSize()
         screen = self.screen().availableGeometry()
         self.move(screen.right() - self.width() - 18, screen.bottom() - self.height() - 18)
         show_gently(self)
