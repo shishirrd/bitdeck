@@ -8,6 +8,35 @@ no Word automation, no liquid glass. The image editor is an optional tool.
 
 ![BitDeck PDF actions at the cursor](docs/cursor-menu.png)
 
+## Privacy built in
+
+**Your files. Your machine. Your control.**
+
+BitDeck processes files locally and works offline. No account, API key or cloud
+service is required. The app does not upload your documents or send usage analytics.
+
+- **Clean image exports by default.** Images are rebuilt from pixels with metadata
+  removed. Keeping common camera EXIF is an explicit choice, with a separate
+  option to exclude standard GPS tags.
+- **Redaction replaces pixels.** Opaque boxes are rendered into the exported
+  image. Original embedded thumbnails and opaque maker notes are dropped, including
+  when common EXIF retention is enabled.
+- **Passwords stay out of saved history.** PDF passwords are used in memory for
+  active controls and pending jobs. They are never written to settings or retained
+  in completed job history; password jobs require re-entry to retry.
+- **Originals stay yours.** Edits create separate copies. Existing output files
+  are never overwritten, and Undo uses the Recycle Bin without a permanent-delete
+  fallback.
+- **Document privacy is in your hands.** Inspect and edit PDF metadata, remove
+  document Info/XMP, and protect exported PDFs with AES-256 password encryption.
+- **The protections are inspectable.** Source code, processing limits and
+  regression tests are included, with the security model documented openly.
+
+Review visible content before sharing: names, faces and place names can still
+identify someone after metadata removal. PDF metadata cleanup covers Info/XMP;
+embedded content and attachments need separate review. See [SECURITY.md](SECURITY.md)
+for the full protections and limits.
+
 ## The workflow
 
 1. Start BitDeck. It lives in the system tray.
