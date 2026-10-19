@@ -41,18 +41,19 @@ for the full protections and limits.
 
 1. Start BitDeck. It lives in the system tray.
 2. Start dragging a supported file in Explorer or on the desktop.
-3. Press **Shift** while holding the mouse button. Move into the wheel that
-   appears near your cursor, then drop onto an action.
-4. Tap **Shift** again while dragging for **Tools**.
+3. Press **Shift** while holding the mouse button. The menu appears near your
+   cursor with every action for that file type visible together.
+4. Drop onto an action, or drop in the strip below the buttons to release the
+   mouse first and choose with a click.
 5. The result card reports output sizes and offers **Open folder** and **Undo**.
 
-Drop in the center to choose afterward. Escape closes the menu. In click mode,
-Tab switches Convert/Tools, arrows select, and Enter applies. Double-click the
+Escape closes the menu. In click mode, Tab and arrows select an action, and
+Enter applies it. Extra Shift presses leave the menu unchanged. Double-click the
 tray icon to choose files without dragging. One drop must contain one file family.
 
 ## Implemented in v0.4
 
-| Input | Convert | Tools |
+| Input | Output formats | Other actions in the same menu |
 | --- | --- | --- |
 | PNG, JPEG, WebP | PNG, JPEG, WebP; one or several images to one PDF | Compress, resize, crop, rotate, flip, opaque redaction, arrows/boxes/marker/text/steps, inspect and control metadata |
 | PDF | Selected pages to PNG/JPEG; existing text layer to UTF-8 TXT | Page preview, ranges, drag reordering, merge, omit/rotate pages, split, lossless compression, AES-256 protection, password input/decrypted copies, embedded images, inspect/edit/clear metadata |
@@ -75,7 +76,7 @@ This prototype does not claim full DragShift feature parity.
 
 ### Image tools
 
-Choose **Tools → Edit image** at the cursor, or **tray → Image editor** and
+Choose **Edit image** at the cursor, or **tray → Image editor** and
 **Metadata / Crop / Annotate**. Tools use the selected image. Draw a crop or
 enter percentage bounds; 1:1, 4:3 and 16:9 buttons make centered crops. Rotate
 clockwise and flip horizontally/vertically. Choose an annotation tool, color,
@@ -93,7 +94,7 @@ edits. Pause/resume, cancel and retry use captured settings.
 
 ### PDF controls and batch jobs
 
-Open **tray → PDF controls** or **Tools → Page controls** at the cursor. Add PDFs,
+Open **tray → PDF controls** or **Page controls** at the cursor. Add PDFs,
 select a page to preview, drag rows or use Up/Down to reorder, remove unwanted
 pages, rotate selected pages and **Save arrangement**. This writes a new merged
 PDF from the displayed arrangement. Closing PDF controls discards its arrangement
@@ -133,7 +134,7 @@ running. Keep the executable at a stable path if you enable Explorer integration
 ## Classic Winamp skins (.wsz)
 
 Use **tray menu → Themes → Import classic Winamp skin (.wsz)**. You can also drop
-a `.wsz` onto the cursor wheel and choose **Apply skin**. The colors/header artwork
+a `.wsz` onto the cursor menu and choose **Apply skin**. The colors/header artwork
 update immediately, are remembered for the next start, and can be reset through
 **Themes → Reset to BitDeck**. Try the original [Voltage Blue demo skin](skins/Voltage-Blue.wsz).
 

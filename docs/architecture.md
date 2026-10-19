@@ -3,7 +3,7 @@
 ```mermaid
 flowchart TD
     Explorer[Explorer / Desktop drag] --> Trigger[Left mouse + movement + Shift]
-    Trigger --> Wheel[Type-aware cursor wheel]
+    Trigger --> Wheel[Type-aware all-actions drop menu]
     Files[Tray picker / Explorer / Send to] --> Handoff[Bounded user-only handoff]
     Handoff --> Wheel
     Wheel --> Queue[Structured action queue]

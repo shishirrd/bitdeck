@@ -30,7 +30,19 @@ users download and launch only the outer, windowless `BitDeck.exe`. Windows Job
 Object limits still apply to worker processes. No external Python is launched.
 
 For UI-only edits, `--ui-only` reuses an existing worker. If processing, parsers
-or worker code changes, omit it to rebuild both. The `packaging/` entries,
+or worker code changes, omit it to rebuild both. To build alongside an EXE that
+Windows has locked because it is running, use a separate output directory:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/build_windows.py --ui-only --output-dir windows/updated
+.\.venv\Scripts\python.exe scripts/verify_windows.py --executable windows/updated/BitDeck.exe
+.\.venv\Scripts\python.exe scripts/package_windows.py --directory windows/updated
+```
+
+Quit the older app from its tray menu before launching the replacement. A second
+instance hands off to the running copy, so leaving an old copy open keeps its UI.
+
+The `packaging/` entries,
 `scripts/build_windows.py`, lock files and full original application source are
 provided so users can rebuild, debug or replace components. Third-party libraries
 retain their respective licenses; sources/project locations and license texts

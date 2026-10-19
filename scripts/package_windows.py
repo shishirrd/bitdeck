@@ -1,5 +1,6 @@
 """Collect the verified executable, notices and original demo skin for delivery."""
 import hashlib
+import argparse
 import json
 from pathlib import Path
 import shutil
@@ -9,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    output = ROOT / "windows"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--directory", type=Path, default=ROOT / "windows")
+    output = parser.parse_args().directory.resolve()
     executable = output / "BitDeck.exe"
     report = json.loads((output / "packaged-check.json").read_text(encoding="utf-8"))
     if not report.get("ok") or not report.get("frozen"):

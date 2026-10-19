@@ -51,11 +51,14 @@ def notices():
 
 
 def main():
+    global DIST
     parser = argparse.ArgumentParser()
     parser.add_argument("--ui-only", action="store_true", help="Reuse an already-built worker after UI-only edits")
+    parser.add_argument("--output-dir", type=Path, default=DIST, help="Destination folder; useful when an older EXE is running")
     options = parser.parse_args()
+    DIST = options.output_dir.resolve()
     WORK.mkdir(parents=True, exist_ok=True)
-    DIST.mkdir(exist_ok=True)
+    DIST.mkdir(parents=True, exist_ok=True)
     temp = WORK / "temp"
     temp.mkdir(exist_ok=True)
     os.environ["TEMP"] = os.environ["TMP"] = str(temp)

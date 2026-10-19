@@ -1,5 +1,6 @@
 """Verify the real portable .exe without Python or developer tools on PATH."""
 import json
+import argparse
 import hashlib
 import os
 from pathlib import Path
@@ -10,8 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    executable = ROOT / "windows" / "BitDeck.exe"
-    report = ROOT / "windows" / "packaged-check.json"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--executable", type=Path, default=ROOT / "windows" / "BitDeck.exe")
+    executable = parser.parse_args().executable.resolve()
+    report = executable.parent / "packaged-check.json"
     report.unlink(missing_ok=True)
     temp = ROOT / "work" / "package" / "verification-temp"
     temp.mkdir(parents=True, exist_ok=True)

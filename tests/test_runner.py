@@ -18,8 +18,8 @@ def wait_until(app, predicate, seconds=15):
 
 
 @pytest.fixture(scope="module")
-def app():
-    return QCoreApplication.instance() or QCoreApplication([])
+def app(qt_app):
+    return qt_app
 
 
 def test_worker_lifecycle_and_limits(app, tmp_path):

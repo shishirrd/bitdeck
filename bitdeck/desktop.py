@@ -91,7 +91,6 @@ class Desktop(QObject):
         self.menu.browseRequested.connect(self.browse)
         self.watcher = DragWatcher(self)
         self.watcher.activated.connect(lambda point: self.menu.popup(point))
-        self.watcher.toggle.connect(self.menu.toggle)
         self.watcher.cancelled.connect(lambda: self.menu.hide() if self.menu.drag_mode else None)
         self.watcher.start()
         from .batch import BatchWindow

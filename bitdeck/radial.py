@@ -1,12 +1,10 @@
 """Winamp-inspired cursor menu. Native Qt drag/drop, not a file-selection proxy."""
-import math
-from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
-from .actions import Action, actions_for, category
+from .actions import actions_for, category
 from .palette import color
 
 
@@ -20,7 +18,7 @@ class CursorMenu(QWidget):
         self.setAcceptDrops(True)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setAccessibleName("BitDeck file actions. Tab switches Convert and Tools. Arrow keys choose an action; Enter applies it. Escape closes.")
+        self.setAccessibleName("BitDeck file actions. All actions are visible. Tab and arrow keys choose an action; Enter applies it. Escape closes.")
         self.paths = []
         self.family = None
         self.tools = False
@@ -50,23 +48,28 @@ class CursorMenu(QWidget):
             self.setFocus()
 
     def refresh(self):
-        self.actions = actions_for(self.family, self.tools)
+        self.actions = []
+        seen = set()
+        for action in actions_for(self.family, False) + actions_for(self.family, True):
+            if action.key not in seen:
+                self.actions.append(action)
+                seen.add(action.key)
         self.setAccessibleDescription("; ".join(action.title + ": " + action.hint for action in self.actions))
         self.update()
 
     def toggle(self):
-        if self.isVisible():
-            self.tools = not self.tools
-            self.hover = -1
-            self.refresh()
+        # Compatibility for old callers: actions stay visible across Shift taps.
+        pass
+
+    def action_rect(self, index):
+        columns = 3 if len(self.actions) > 4 else 2
+        width = (488 - (columns - 1) * 8) / columns
+        return QRectF(16 + (index % columns) * (width + 8),
+                      86 + (index // columns) * 78, width, 70)
 
     def index_at(self, position):
-        delta = position - QPointF(260, 252)
-        distance = math.hypot(delta.x(), delta.y())
-        if not 76 <= distance <= 174 or not self.actions:
-            return -1
-        angle = (math.degrees(math.atan2(delta.y(), delta.x())) + 90) % 360
-        return min(len(self.actions) - 1, int(angle / (360 / len(self.actions))))
+        return next((index for index in range(len(self.actions))
+                     if self.action_rect(index).contains(position)), -1)
 
     def paintEvent(self, _):
         painter = QPainter(self)
@@ -84,38 +87,32 @@ class CursorMenu(QWidget):
         painter.drawText(QRectF(477, 9, 28, 25), Qt.AlignCenter, "×")
         painter.fillRect(QRectF(16, 42, 488, 30), QColor(color("display")))
         painter.setPen(QColor(color("accent")))
-        text = " / ".join([self.family.upper() if self.family else "WAITING FOR FILE", "TOOLS" if self.tools else "CONVERT"])
+        text = " / ".join([self.family.upper() if self.family else "WAITING FOR FILE", "ALL ACTIONS"])
         painter.drawText(QRectF(24, 42, 475, 30), Qt.AlignVCenter, text)
         if self.actions:
-            count = len(self.actions)
-            center = QPointF(260, 252)
-            outer = QRectF(86, 78, 348, 348)
-            inner = QRectF(184, 176, 152, 152)
             for index, action in enumerate(self.actions):
-                # Clockwise sectors from noon; leave small gaps between tactile keys.
-                start = 90 - index * 360 / count
-                span = 360 / count
-                path = QPainterPath()
-                path.arcMoveTo(outer, start - 1)
-                path.arcTo(outer, start - 1, -(span - 2))
-                end_radians = math.radians(start - span + 1)
-                path.lineTo(center + QPointF(76 * math.cos(end_radians), -76 * math.sin(end_radians)))
-                path.arcTo(inner, start - span + 1, span - 2)
-                path.closeSubpath()
+                rect = self.action_rect(index)
                 selected = index == self.hover
-                painter.fillPath(path, QColor(color("accent") if selected else color("control")))
+                painter.fillRect(rect, QColor(color("accent") if selected else color("control")))
                 painter.setPen(QPen(QColor(color("text") if selected else color("border")), 1))
-                painter.drawPath(path)
-                mid = math.radians(start - span / 2)
-                point = center + QPointF(132 * math.cos(mid), -132 * math.sin(mid))
-                painter.setFont(QFont("Consolas", 11, QFont.Bold))
-                selected_text = "#101010" if QColor(color("accent")).lightness() > 130 else "#ffffff"
-                painter.setPen(QColor(selected_text if selected else color("text")))
-                painter.drawText(QRectF(point.x() - 62, point.y() - 25, 124, 50), Qt.AlignCenter | Qt.TextWordWrap, action.title)
+                painter.drawRect(rect)
+                foreground = ("#101010" if QColor(color("accent")).lightness() > 130 else "#ffffff") if selected else color("text")
+                painter.setPen(QColor(foreground))
+                painter.setFont(QFont("Consolas", 10, QFont.Bold))
+                painter.drawText(rect.adjusted(8, 3, -8, -39), Qt.AlignCenter, action.title)
+                painter.setFont(QFont("Segoe UI", 9))
+                summaries = {"pdf_controls": "Preview & arrange pages", "pdf_compress": "Lossless compression",
+                    "pdf_split": "One PDF per page", "pdf_rotate": "Rotate PDF pages", "pdf_merge": "Combine PDF files",
+                    "pdf_protect": "Set a PDF password", "pdf_extract": "Extract embedded images",
+                    "pdf_metadata": "Remove document metadata", "pdf_to_text": "Extract text layer",
+                    "pdf_to_png": "Export pages as PNG", "pdf_to_jpeg": "Export pages as JPEG",
+                    "image_controls": "Crop, mark & edit metadata"}
+                painter.drawText(rect.adjusted(8, 29, -8, -3), Qt.AlignCenter | Qt.TextWordWrap, summaries.get(action.key, action.hint))
+            painter.fillRect(QRectF(16, 406, 488, 28), QColor(color("display")))
             painter.setPen(QColor(color("secondary")))
-            painter.setFont(QFont("Consolas", 10))
-            painter.drawText(QRectF(187, 210, 146, 80), Qt.AlignCenter | Qt.TextWordWrap,
-                             f"{len(self.paths)} FILE{'S' if len(self.paths) != 1 else ''}\n\nDROP ON ACTION" if self.drag_mode else "CHOOSE\nAN ACTION")
+            painter.setFont(QFont("Consolas", 9))
+            painter.drawText(QRectF(20, 406, 480, 28), Qt.AlignCenter,
+                             "DROP HERE TO CHOOSE AFTER RELEASING" if self.drag_mode else f"{len(self.paths)} FILE(S) / CLICK AN ACTION")
         else:
             painter.setPen(QColor(color("accent")))
             painter.setFont(QFont("Consolas", 18))
@@ -124,7 +121,7 @@ class CursorMenu(QWidget):
             painter.setFont(QFont("Consolas", 11))
             painter.setPen(QColor(color("muted")))
             painter.drawText(QRectF(35, 290, 450, 40), Qt.AlignCenter, "IMAGES  /  PDF  /  TEXT")
-        hint = self.actions[self.hover].hint if 0 <= self.hover < len(self.actions) else "Tap Shift / Tab to switch Convert and Tools"
+        hint = self.actions[self.hover].hint if 0 <= self.hover < len(self.actions) else "All actions are visible. Drop on a button, or release below to choose afterward."
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(color("text")))
         painter.drawText(QRectF(20, 438, 480, 32), Qt.AlignCenter | Qt.TextWordWrap, hint)
@@ -185,7 +182,7 @@ class CursorMenu(QWidget):
             event.accept()
             self.choose(index)
         else:
-            # Dropping in the hub changes to click mode, so the user can choose next.
+            # Dropping outside the action buttons leaves a stable click menu.
             event.setDropAction(Qt.CopyAction)
             event.accept()
             self.drag_mode = False
@@ -196,8 +193,9 @@ class CursorMenu(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.hide()
-        elif event.key() in {Qt.Key_Tab, Qt.Key_Shift}:
-            self.toggle()
+        elif event.key() == Qt.Key_Tab and self.actions:
+            self.hover = (self.hover + (-1 if event.modifiers() & Qt.ShiftModifier else 1)) % len(self.actions)
+            self.update()
         elif event.key() in {Qt.Key_Right, Qt.Key_Down, Qt.Key_Left, Qt.Key_Up} and self.actions:
             self.hover = (self.hover + (1 if event.key() in {Qt.Key_Right, Qt.Key_Down} else -1)) % len(self.actions)
             self.update()

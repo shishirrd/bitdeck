@@ -29,6 +29,9 @@ image-to-PDF, document budgets and output rollback.
 input. It verifies CopyAction, mixed-family rejection, routing to real worker
 outputs and the mocked Shift polling state machine. The screenshot captures the
 actual cursor menu. This does not prove real Explorer/OLE drag behavior.
+The cursor menu shows conversion and editing actions together. Checks verify all
+11 PDF targets, all 8 image actions, unchanged actions across the legacy toggle,
+and a drop in the release strip followed by a click on Page controls.
 `scripts/smoke_ui.py` covers the optional editor and simulated Undo failures.
 
 `scripts/smoke_editing.py` drives the actual image tool controls and workers for

@@ -14,13 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
-from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QMouseEvent
 from PySide6.QtNetwork import QLocalSocket
 
 from bitdeck.app import create_application
 from bitdeck.desktop import Desktop
 from bitdeck.ipc import InstanceServer
 from bitdeck.trigger import DragWatcher
+from bitdeck.radial import CursorMenu
 
 
 def wait(application, predicate, seconds=15):
@@ -53,9 +54,43 @@ def main():
             assert enter.isAccepted()
             assert enter.dropAction() == Qt.CopyAction
             assert desktop.menu.family == "pdf"
-            assert [action.title for action in desktop.menu.actions] == ["PNG", "JPEG", "TXT"]
-            # Drop on TXT sector (clockwise third sector at the upper-left).
-            drop = QDropEvent(QPointF(135, 185), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+            assert {action.key for action in desktop.menu.actions} == {
+                "pdf_to_png", "pdf_to_jpeg", "pdf_to_text", "pdf_controls", "pdf_compress", "pdf_split",
+                "pdf_rotate", "pdf_merge", "pdf_protect", "pdf_extract", "pdf_metadata"}
+            before = list(desktop.menu.actions)
+            desktop.menu.toggle()
+            assert desktop.menu.actions == before
+            # Every action is visible, inside the window, and has a distinct target.
+            for index in range(len(desktop.menu.actions)):
+                rect = desktop.menu.action_rect(index)
+                assert desktop.menu.rect().contains(rect.toRect())
+                assert desktop.menu.index_at(rect.center()) == index
+            probe = CursorMenu()
+            routed = []
+            dropped_paths = [url.toLocalFile() for url in mime.urls()]
+            probe.actionChosen.connect(lambda key, paths: routed.append((key, paths)))
+            for index, action in enumerate(desktop.menu.actions):
+                probe.popup(QPoint(400, 350), [str(source)], drag=True)
+                target = QDropEvent(probe.action_rect(index).center(), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+                probe.dropEvent(target)
+                assert target.isAccepted() and target.dropAction() == Qt.CopyAction
+                assert routed[-1] == (action.key, dropped_paths)
+            # Releasing below the buttons leaves a click menu; no Shift tap is needed.
+            probe.popup(QPoint(400, 350), [str(source)], drag=True)
+            release = QDropEvent(QPointF(260, 420), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+            probe.dropEvent(release)
+            assert release.isAccepted() and not probe.drag_mode and probe.isVisible()
+            page_index = next(i for i,a in enumerate(probe.actions) if a.key == "pdf_controls")
+            point = probe.action_rect(page_index).center()
+            probe.mousePressEvent(QMouseEvent(QEvent.MouseButtonPress, point, point, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+            assert routed[-1] == ("pdf_controls", dropped_paths)
+            probe.popup(QPoint(400, 350), [str(Path(folder) / "image.png")], drag=False)
+            assert {a.key for a in probe.actions} >= {"image:PNG", "images_to_pdf", "image_controls", "compress_image", "resize_image", "clean_image"}
+            assert len(probe.actions) == 8
+            probe.hide()
+            probe.deleteLater()
+            text_index = next(i for i,a in enumerate(desktop.menu.actions) if a.key == "pdf_to_text")
+            drop = QDropEvent(desktop.menu.action_rect(text_index).center(), allowed, mime, Qt.LeftButton, Qt.NoModifier)
             desktop.menu.dropEvent(drop)
             assert drop.isAccepted() and drop.dropAction() == Qt.CopyAction
             wait(application, lambda: not desktop.runner.busy and bool(desktop.cards) and bool(desktop.cards[0].result))

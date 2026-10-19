@@ -2,7 +2,7 @@ import json
 import time
 
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QEvent
 from PySide6.QtNetwork import QLocalSocket
 
 from bitdeck.ipc import InstanceServer, MAX_MESSAGE, validate_message
@@ -24,8 +24,8 @@ def test_oversized_handoff_rejected():
         validate_message(b" " * (MAX_MESSAGE + 1))
 
 
-def test_live_user_restricted_handoff():
-    application = QCoreApplication.instance() or QCoreApplication([])
+def test_live_user_restricted_handoff(qt_app):
+    application = qt_app
     server = InstanceServer(name="BitDeck-ipc-test-" + str(time.time_ns()))
     if not server.listening:
         pytest.skip("User-only named pipe unavailable: " + server.server.errorString())
@@ -45,3 +45,7 @@ def test_live_user_restricted_handoff():
     finally:
         client.abort()
         server.close()
+        client.deleteLater()
+        server.deleteLater()
+        application.sendPostedEvents(None, QEvent.DeferredDelete)
+        application.processEvents()
