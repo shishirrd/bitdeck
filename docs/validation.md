@@ -3,13 +3,13 @@
 18 October 2026. Windows x64, Python 3.10.11. Exact package versions and Windows
 wheel hashes are in the runtime/development lock files.
 
-Source regression result: **76 passed, 1 skipped**. The skip is the live
+Source regression result: **77 passed, 1 skipped**. The skip is the live
 user-restricted named-pipe test below. Theme-specific checks also passed after
 light-theme readability fixes. Tests cover archive path traversal, duplicate
 assets, file-count limits, color/style injection, PNG dimension limits, worker
 skin import, rendering, saved settings, reload and default reset.
 
-The executable passed **18 packaged checks** and exited cleanly. Verification
+The executable passed **20 packaged checks** and exited cleanly. Verification
 covers the image/PDF controls as well as the earlier conversion and theme paths,
 with Python/developer tools removed
 from PATH and Python-related environment variables cleared: image preview/export,
@@ -31,8 +31,19 @@ outputs and the mocked Shift polling state machine. The screenshot captures the
 actual cursor menu. This does not prove real Explorer/OLE drag behavior.
 The cursor menu shows conversion and editing actions together. Checks verify all
 11 PDF targets, all 8 image actions, unchanged actions across the legacy toggle,
-and a drop in the release strip followed by a click on Page controls.
+and a drop in the center hub followed by a click on Page controls. Clicks commit
+on mouse release; moving off the pressed wedge cancels the click. Accepted drops
+dispatch after their event handler returns, with duplicate activation blocked.
 `scripts/smoke_ui.py` covers the optional editor and simulated Undo failures.
+
+`scripts/smoke_motion.py` exercises interruptible highlight transitions, angular
+hysteresis, fixed hit targets, scaled geometry, reduced motion, deferred dispatch,
+cancelled/late input, modeless settings, password-field clearing, immediate
+processing feedback and one shared batch activity card with final output access.
+The packed checks also construct/submit a modeless sheet and verify all radial
+targets plus deferred single dispatch in the actual executable. Screenshots are
+rendered Qt widgets, not mockups. These checks do not measure perceived smoothness
+or guarantee a frame rate on every Windows machine.
 
 `scripts/smoke_editing.py` drives the actual image tool controls and workers for
 crop/rotation/annotation, then PDF preview, page rotation/reordering/assembly,

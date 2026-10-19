@@ -10,6 +10,7 @@ from .runner import WorkerRunner
 
 class BatchWindow(QWidget):
     jobFinished = Signal(dict, dict)
+    jobStarted = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -70,6 +71,7 @@ class BatchWindow(QWidget):
         self.active = next(row for row in self.records if row["request"] is request)
         self.active["state"] = "WORKING"
         self.refresh()
+        self.jobStarted.emit(request)
         self.runner.start(request)
 
     def finished(self, result):

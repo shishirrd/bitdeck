@@ -101,6 +101,17 @@ def main(argv=None):
             application.sendPostedEvents(None, QEvent.DeferredDelete)
             application.processEvents()
             records.append({"operation": "editing_controls_construct", "ok": True})
+            from .action_sheet import ActionSheet
+            from PySide6.QtCore import QPoint
+            sheet = ActionSheet("resize_image", [str(image)], QPoint(350, 350))
+            values = []
+            sheet.confirmed.connect(values.append)
+            assert not sheet.isModal()
+            sheet.fields["long_edge"].setValue(16)
+            sheet.submit()
+            assert values == [{"long_edge": 16}]
+            application.sendPostedEvents(None, QEvent.DeferredDelete)
+            records.append({"operation": "modeless_action_sheet", "ok": True})
             # A simple uncompressed 24-bit BMP in a real .wsz, generated using
             # standard Python only: verifies skin parsing dependencies in the worker.
             width, height = 275, 116
@@ -125,11 +136,27 @@ def main(argv=None):
             menu.popup(QPoint(400, 350), [pdf], drag=False)
             menu.toggle()
             menu.hover = 1
+            menu.settle()
             application.processEvents()
             menu.grab().save(str(Path(args.report).with_suffix(".png")))
+            assert len(menu.actions) == 11
+            assert all(menu.index_at(menu.action_point(i)) == i for i in range(len(menu.actions)))
+            routed = []
+            menu.actionChosen.connect(lambda key, paths: routed.append(key))
+            menu.choose(0)
+            menu.choose(1)
+            assert not routed
+            deadline = time.monotonic() + 3
+            while not routed and time.monotonic() < deadline:
+                application.processEvents()
+                time.sleep(.01)
+            assert routed == ["pdf_to_png"]
+            records.append({"operation": "radial_deferred_dispatch", "ok": True})
+            manager.soft_light()
+            assert manager.current["name"] == "Soft light"
             manager.reset()
             assert ACTIVE == DEFAULT and "#4dd0ff" not in application.styleSheet()
-            menu.hide()
+            menu.cancel_pending()
             menu.deleteLater()
             application.sendPostedEvents(None, QEvent.DeferredDelete)
             application.processEvents()

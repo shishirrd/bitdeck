@@ -62,27 +62,36 @@ def main():
             assert desktop.menu.actions == before
             # Every action is visible, inside the window, and has a distinct target.
             for index in range(len(desktop.menu.actions)):
-                rect = desktop.menu.action_rect(index)
-                assert desktop.menu.rect().contains(rect.toRect())
-                assert desktop.menu.index_at(rect.center()) == index
+                point = desktop.menu.action_point(index)
+                assert desktop.menu.rect().contains(point.toPoint())
+                assert desktop.menu.index_at(point) == index
             probe = CursorMenu()
             routed = []
             dropped_paths = [url.toLocalFile() for url in mime.urls()]
             probe.actionChosen.connect(lambda key, paths: routed.append((key, paths)))
             for index, action in enumerate(desktop.menu.actions):
                 probe.popup(QPoint(400, 350), [str(source)], drag=True)
-                target = QDropEvent(probe.action_rect(index).center(), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+                target = QDropEvent(probe.action_point(index), allowed, mime, Qt.LeftButton, Qt.NoModifier)
                 probe.dropEvent(target)
                 assert target.isAccepted() and target.dropAction() == Qt.CopyAction
+                assert len(routed) == index  # Dispatch cannot run inside the drop handler.
+                wait(application, lambda: len(routed) == index + 1)
                 assert routed[-1] == (action.key, dropped_paths)
-            # Releasing below the buttons leaves a click menu; no Shift tap is needed.
+            # Releasing in the center leaves a click menu; no Shift tap is needed.
             probe.popup(QPoint(400, 350), [str(source)], drag=True)
-            release = QDropEvent(QPointF(260, 420), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+            release = QDropEvent(QPointF(280, 286), allowed, mime, Qt.LeftButton, Qt.NoModifier)
             probe.dropEvent(release)
             assert release.isAccepted() and not probe.drag_mode and probe.isVisible()
             page_index = next(i for i,a in enumerate(probe.actions) if a.key == "pdf_controls")
-            point = probe.action_rect(page_index).center()
+            point = probe.action_point(page_index)
             probe.mousePressEvent(QMouseEvent(QEvent.MouseButtonPress, point, point, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+            other = probe.action_point((page_index + 1) % len(probe.actions))
+            probe.mouseReleaseEvent(QMouseEvent(QEvent.MouseButtonRelease, other, other, Qt.LeftButton, Qt.NoButton, Qt.NoModifier))
+            assert len(routed) == 11  # Moving away before release cancels a click.
+            probe.mousePressEvent(QMouseEvent(QEvent.MouseButtonPress, point, point, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+            assert len(routed) == 11
+            probe.mouseReleaseEvent(QMouseEvent(QEvent.MouseButtonRelease, point, point, Qt.LeftButton, Qt.NoButton, Qt.NoModifier))
+            wait(application, lambda: len(routed) == 12)
             assert routed[-1] == ("pdf_controls", dropped_paths)
             probe.popup(QPoint(400, 350), [str(Path(folder) / "image.png")], drag=False)
             assert {a.key for a in probe.actions} >= {"image:PNG", "images_to_pdf", "image_controls", "compress_image", "resize_image", "clean_image"}
@@ -90,7 +99,7 @@ def main():
             probe.hide()
             probe.deleteLater()
             text_index = next(i for i,a in enumerate(desktop.menu.actions) if a.key == "pdf_to_text")
-            drop = QDropEvent(desktop.menu.action_rect(text_index).center(), allowed, mime, Qt.LeftButton, Qt.NoModifier)
+            drop = QDropEvent(desktop.menu.action_point(text_index), allowed, mime, Qt.LeftButton, Qt.NoModifier)
             desktop.menu.dropEvent(drop)
             assert drop.isAccepted() and drop.dropAction() == Qt.CopyAction
             wait(application, lambda: not desktop.runner.busy and bool(desktop.cards) and bool(desktop.cards[0].result))
@@ -156,6 +165,7 @@ def main():
                 desktop.menu.popup(QPoint(400, 350), [str(source)], drag=False)
                 desktop.menu.toggle()
                 desktop.menu.hover = 1
+                desktop.menu.settle()
                 application.processEvents()
                 desktop.menu.grab().save(sys.argv[1])
             print("Cursor integration passed: copy-only PDF drop -> TXT; text -> PDF; mixed drop rejection; drag/Shift polling. IPC verified: " + str(bool(received)))

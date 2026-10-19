@@ -67,7 +67,15 @@
       "ok": true
     },
     {
+      "operation": "modeless_action_sheet",
+      "ok": true
+    },
+    {
       "operation": "import_theme",
+      "ok": true
+    },
+    {
+      "operation": "radial_deferred_dispatch",
       "ok": true
     },
     {
@@ -75,6 +83,6 @@
       "ok": true
     }
   ],
-  "executable_sha256": "060a5389258d611ec69691d9663620ec756ef0e7df82d8e962ce96e5d83abca9",
+  "executable_sha256": "7d77532a177d47a6d27514719bb929e96d7cd11348285395144803d9db6d4724",
   "path_policy": "Windows system directories only; Python environment overrides cleared"
 }

@@ -3,10 +3,12 @@
 ```mermaid
 flowchart TD
     Explorer[Explorer / Desktop drag] --> Trigger[Left mouse + movement + Shift]
-    Trigger --> Wheel[Type-aware all-actions drop menu]
+    Trigger --> Wheel[Animated radial menu / every action visible]
     Files[Tray picker / Explorer / Send to] --> Handoff[Bounded user-only handoff]
     Handoff --> Wheel
     Wheel --> Queue[Structured action queue]
+    Wheel --> Sheet[Modeless action settings]
+    Sheet --> Queue
     Wheel --> Editor[Optional image editor]
     Wheel --> Pages[Optional PDF page workspace]
     Pages --> Queue

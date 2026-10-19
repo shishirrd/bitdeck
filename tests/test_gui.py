@@ -35,3 +35,11 @@ def test_image_pdf_controls_and_batch_queue():
                             env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
                             capture_output=True, text=True, timeout=100)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_radial_motion_and_modeless_action_flow():
+    root = Path(__file__).parents[1]
+    result = subprocess.run([sys.executable, str(root / "scripts" / "smoke_motion.py")], cwd=root,
+                            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                            capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr

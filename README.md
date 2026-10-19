@@ -41,15 +41,26 @@ for the full protections and limits.
 
 1. Start BitDeck. It lives in the system tray.
 2. Start dragging a supported file in Explorer or on the desktop.
-3. Press **Shift** while holding the mouse button. The menu appears near your
-   cursor with every action for that file type visible together.
-4. Drop onto an action, or drop in the strip below the buttons to release the
-   mouse first and choose with a click.
+3. Press **Shift** while holding the mouse button. A floating radial menu appears
+   near your cursor with every action for that file type visible together.
+4. Drop onto a wedge, or release in the center to choose afterward with a click.
 5. The result card reports output sizes and offers **Open folder** and **Undo**.
 
 Escape closes the menu. In click mode, Tab and arrows select an action, and
 Enter applies it. Extra Shift presses leave the menu unchanged. Double-click the
 tray icon to choose files without dragging. One drop must contain one file family.
+
+Rounded wedges, cached soft shadows and eased highlights keep the wheel tactile.
+Targets stay in place throughout the gesture; a small angular tolerance prevents
+selection flicker at boundaries. Action settings open in modeless sheets after
+the drop finishes, and processing feedback appears while the worker starts.
+Batch processing reuses one activity card and shows a completion summary.
+
+Choose **tray → Themes → Soft light** for warm white surfaces and a muted peach
+highlight, or keep the classic palette/import a `.wsz`. Windows' client animation
+preference is respected. `BITDECK_REDUCED_MOTION=1` also disables transitions.
+
+![Soft light radial menu](docs/soft-light.png)
 
 ## Implemented in v0.4
 

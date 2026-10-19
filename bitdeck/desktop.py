@@ -7,7 +7,7 @@ import subprocess
 from PySide6.QtCore import QFile, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-                             QMenu, QMessageBox, QPushButton, QSystemTrayIcon, QVBoxLayout)
+                             QMenu, QMessageBox, QPushButton, QSystemTrayIcon, QVBoxLayout, QProgressBar)
 
 from .actions import category
 from .app import MainWindow, create_application, human_bytes, label, button
@@ -16,6 +16,8 @@ from .runner import WorkerRunner
 from .trigger import DragWatcher
 from .ipc import InstanceServer, handoff
 from .theming import ThemeManager
+from .motion import show_gently
+from .action_sheet import ActionSheet
 
 
 def tray_icon():
@@ -29,19 +31,28 @@ def tray_icon():
 
 
 class ResultCard(QFrame):
-    def __init__(self, title, detail, result=None):
+    def __init__(self, title, detail, result=None, processing=False):
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.result = result or {}
-        self.setObjectName("panel")
+        self.processing = processing
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setObjectName("resultCard")
+        self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedWidth(420)
         layout = QVBoxLayout(self)
         heading = QHBoxLayout()
-        heading.addWidget(label(title, "section"), 1)
+        heading_text = {"PROCESSING": "Processing", "QUEUE FINISHED": "Batch complete", "ACTION STOPPED": "Action stopped", "SKIN APPLIED": "Theme applied"}.get(title, "Saved" if title.startswith("SAVED /") else title)
+        heading.addWidget(label(heading_text, "resultTitle"), 1)
         heading.addWidget(button("×", self.close, "Dismiss result"))
         layout.addLayout(heading)
         self.detail = label(detail)
         self.detail.setWordWrap(True)
         layout.addWidget(self.detail)
+        if processing:
+            progress = QProgressBar()
+            progress.setRange(0, 0)
+            progress.setTextVisible(False)
+            layout.addWidget(progress)
         if result and result.get("ok"):
             row = QHBoxLayout()
             row.addWidget(button("OPEN FOLDER", self.open_folder, "Open the output folder"))
@@ -52,7 +63,7 @@ class ResultCard(QFrame):
     def popup(self):
         screen = self.screen().availableGeometry()
         self.move(screen.right() - self.width() - 18, screen.bottom() - self.height() - 18)
-        self.show()
+        show_gently(self)
 
     def open_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.result["output"]).parent)))
@@ -84,6 +95,10 @@ class Desktop(QObject):
     def __init__(self, application, single_instance=True, theme_cache=None):
         super().__init__(application)
         self.application = application
+        self.closing = False
+        self.sheets = set()
+        self._run_active = False
+        self._run_results = []
         self.application.setQuitOnLastWindowClosed(False)
         self.menu = CursorMenu()
         self.themes = ThemeManager(application, self.menu, theme_cache)
@@ -97,6 +112,7 @@ class Desktop(QObject):
         self.batch = BatchWindow()
         self.runner = self.batch.runner
         self.batch.jobFinished.connect(self.batch_finished)
+        self.batch.jobStarted.connect(self.job_started)
         self.queue = self.batch.pending
         self.pdf_window = None
         self.active = None
@@ -109,8 +125,11 @@ class Desktop(QObject):
         self.tray.setToolTip("BitDeck · drag a file and press Shift")
         context = QMenu()
         context.addAction("Choose files…", self.browse)
-        context.addAction("Image editor / batch queue…", self.show_workbench)
+        context.addAction("Image editor…", self.show_workbench)
+        context.addAction("PDF controls…", self.show_pdf)
+        context.addAction("Batch queue / results…", self.batch.show)
         themes = context.addMenu("Themes")
+        themes.addAction("Soft light", self.soft_light)
         themes.addAction("Import classic Winamp skin (.wsz)…", self.import_skin)
         themes.addAction("Reset to BitDeck", self.reset_skin)
         enabled = QAction("Drag + Shift enabled", context, checkable=True, checked=True)
@@ -134,12 +153,12 @@ class Desktop(QObject):
         else:
             self.notify("BITDECK IS RUNNING", "Drag a supported file and press Shift, or double-click the tray icon.")
 
-    def notify(self, title, detail, result=None):
+    def notify(self, title, detail, result=None, processing=False):
         # Keep a bounded number of cards; newest result remains visible.
         for card in self.cards:
             card.hide()
             card.deleteLater()
-        self.cards = [ResultCard(title, detail, result)]
+        self.cards = [ResultCard(title, detail, result, processing)]
         self.cards[0].popup()
 
     def browse(self):
@@ -162,7 +181,7 @@ class Desktop(QObject):
             self.workbench = MainWindow()
         if isinstance(paths, list):
             self.workbench.add_files(paths)
-        self.workbench.show()
+        show_gently(self.workbench)
         self.workbench.raise_()
         self.workbench.activateWindow()
 
@@ -170,7 +189,7 @@ class Desktop(QObject):
         if self.pdf_window is None:
             from .pdf_ui import PDFWindow
             self.pdf_window = PDFWindow(self.batch)
-        self.pdf_window.show()
+        show_gently(self.pdf_window)
         self.pdf_window.raise_()
         if isinstance(paths, list):
             self.pdf_window.add_files(paths)
@@ -179,8 +198,8 @@ class Desktop(QObject):
         self.active = request
         self.finished(result)
 
-    def choose(self, key, paths):
-        if not paths:
+    def choose(self, key, paths, options=None):
+        if self.closing or not paths:
             return
         if key == "pdf_controls":
             self.show_pdf(paths)
@@ -192,6 +211,15 @@ class Desktop(QObject):
             if key == "image_controls":
                 self.workbench.show_tools()
             return
+        if key in ActionSheet.CONFIGURED and options is None:
+            captured_paths = list(paths)
+            sheet = ActionSheet(key, captured_paths, self.menu.frameGeometry().center())
+            self.sheets.add(sheet)
+            sheet.confirmed.connect(lambda values: self.choose(key, captured_paths, values))
+            sheet.finished.connect(lambda _: self.sheets.discard(sheet))
+            sheet.present()
+            return
+        options = options or {}
         requests = []
         if key == "import_theme":
             if len(paths) != 1:
@@ -199,46 +227,18 @@ class Desktop(QObject):
                 return
             requests = [{"operation": "import_theme", "source": paths[0]}]
         elif key.startswith("image:") or key in {"compress_image", "resize_image", "clean_image"}:
-            edge, quality = 0, 85
-            if key == "resize_image":
-                edge, ok = QInputDialog.getInt(self.menu, "Resize copies", "Maximum long edge (pixels):", 1600, 1, 16384)
-                if not ok:
-                    return
-            if key == "compress_image":
-                quality, ok = QInputDialog.getInt(self.menu, "Compress copies", "JPEG / WebP quality (PNG uses lossless optimization):", 72, 1, 100)
-                if not ok:
-                    return
+            edge, quality = options.get("long_edge", 0), options.get("quality", 85)
             for path in paths:
                 fmt = key.split(":", 1)[1] if key.startswith("image:") else {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}[Path(path).suffix.lower()]
                 requests.append({"operation": "export", "source": path, "format": fmt, "quality": quality, "long_edge": edge,
                                  "output_dir": str(Path(path).parent / "BitDeck")})
         elif key in {"images_to_pdf", "pdf_merge"}:
             if key == "pdf_merge" and len(paths) < 2:
-                additional, _ = QFileDialog.getOpenFileNames(self.menu, "Add PDFs to merge after this one", "", "PDF (*.pdf)")
-                paths = paths + [path for path in additional if path not in paths]
-                if len(paths) < 2:
-                    return
+                self.show_pdf(paths)
+                self.pdf_window.status.setText("Add more PDFs, arrange the pages, then Save arrangement.")
+                return
             requests = [{"operation": key, "source": paths[0], "sources": paths}]
         else:
-            options = {}
-            if key in {"pdf_to_png", "pdf_to_jpeg"}:
-                dpi, ok = QInputDialog.getInt(self.menu, "PDF image quality", "Resolution (DPI):", 150, 72, 300)
-                if not ok:
-                    return
-                options["dpi"] = dpi
-            elif key == "pdf_rotate":
-                degrees, ok = QInputDialog.getItem(self.menu, "Rotate copies", "Clockwise rotation:", ["90", "180", "270"], 0, False)
-                if not ok:
-                    return
-                options["degrees"] = int(degrees)
-            elif key == "pdf_protect":
-                password, ok = QInputDialog.getText(self.menu, "Protect copies", "Password (8–128 characters):", QLineEdit.Password)
-                if not ok:
-                    return
-                if not 8 <= len(password) <= 128:
-                    self.notify("PASSWORD TOO SHORT", "Use 8–128 characters. Nothing was written.")
-                    return
-                options["password"] = password
             requests = [{"operation": key, "source": path, **options} for path in paths]
         if len(self.queue) + len(requests) > 200:
             self.notify("QUEUE FULL", "Wait for pending actions before adding more (200-job limit).")
@@ -248,9 +248,24 @@ class Desktop(QObject):
     def start_next(self):
         self.batch.start_next()
 
+    def job_started(self, request):
+        if self.closing:
+            return
+        if not self._run_active:
+            self._run_active = True
+            self._run_results = []
+        detail = f"{Path(request['source']).name}\n{request['operation'].replace('_', ' ')} · {len(self.queue)} pending"
+        if self.cards and self.cards[0].processing:
+            self.cards[0].detail.setText(detail)
+        else:
+            self.notify("PROCESSING", detail, processing=True)
+
     def finished(self, result):
         operation = self.active["operation"] if self.active else "action"
         self.active = None
+        if self.closing:
+            return
+        self._run_results.append(result)
         self.tray.setToolTip("BitDeck · drag a file and press Shift")
         if result["ok"] and operation == "import_theme":
             try:
@@ -258,6 +273,23 @@ class Desktop(QObject):
                 self.notify("SKIN APPLIED", f"{self.themes.current['name']}\nClassic colors and header artwork adapted for BitDeck.")
             except (OSError, ValueError) as error:
                 self.notify("THEME SETTINGS", str(error))
+        if self.queue:
+            return  # One activity card remains while the batch progresses.
+        self._run_active = False
+        if len(self._run_results) > 1:
+            good = sum(item['ok'] for item in self._run_results)
+            last = next((item for item in reversed(self._run_results) if item['ok'] and item.get('output')), None)
+            self.notify("QUEUE FINISHED", f"{good} completed · {len(self._run_results)-good} stopped.\nSee the batch queue for individual results.", last)
+            for control in self.cards[0].findChildren(QPushButton):
+                if control.text() == "UNDO":
+                    control.setText("UNDO LAST JOB")
+                elif control.text() == "OPEN FOLDER":
+                    control.setText("LAST FOLDER")
+            self.cards[0].layout().addWidget(button("VIEW QUEUE", self.batch.show, "Show per-file results"))
+            self.cards[0].adjustSize()
+        elif operation == "import_theme":
+            if not result['ok']:
+                self.notify("ACTION STOPPED", result.get("error", "Could not import this skin."))
         elif result["ok"]:
             count = len(result.get("outputs", [result["output"]]))
             detail = f"{count} output file(s) · {human_bytes(result['input_bytes'])} → {human_bytes(result['output_bytes'])}\n{Path(result['output']).name}"
@@ -272,6 +304,12 @@ class Desktop(QObject):
         path, _ = QFileDialog.getOpenFileName(self.menu, "Import a classic Winamp skin", "", "Winamp classic skin (*.wsz)")
         if path:
             self.choose("import_theme", [path])
+
+    def soft_light(self):
+        try:
+            self.themes.soft_light()
+        except (OSError, ValueError) as error:
+            self.notify("THEME SETTINGS", str(error))
 
     def reset_skin(self):
         try:
@@ -309,6 +347,13 @@ class Desktop(QObject):
         self.application.quit()
 
     def shutdown(self):
+        if self.closing:
+            return
+        self.closing = True
+        self.menu.cancel_pending()
+        for sheet in list(self.sheets):
+            sheet.close()
+        self.sheets.clear()
         self.queue.clear()
         self.watcher.timer.stop()
         self.runner.shutdown()
@@ -317,13 +362,18 @@ class Desktop(QObject):
         if self.instance:
             self.instance.close()
         self.batch.hide()
+        self.batch.deleteLater()
         if self.pdf_window:
             self.pdf_window.close()
+            self.pdf_window.deleteLater()
         if self.workbench:
             if self.workbench.tools:
                 self.workbench.tools.preview_runner.shutdown()
             self.workbench.closing = True
+            self.workbench.runner.shutdown()
+            self.workbench.inspector.shutdown()
             self.workbench.close()
+            self.workbench.deleteLater()
         for card in self.cards:
             card.close()
 
@@ -348,14 +398,12 @@ def main(argv=None):
     elif args.workbench:
         QTimer.singleShot(0, desktop.show_workbench)
     elif not args.quiet:
-        QTimer.singleShot(0, lambda: desktop.notify("BITDECK IS READY", "Drag an image, PDF or text file in Explorer. Press Shift while dragging, then drop on an action. Tap Shift again for Tools.\n\nDouble-click the tray icon to choose files. The image editor is optional."))
+        QTimer.singleShot(0, lambda: desktop.notify("BITDECK IS READY", "Drag an image, PDF or text file in Explorer. Press Shift while dragging, then drop on an action. All actions are visible on the wheel. Drop in the center to choose after releasing.\n\nDouble-click the tray icon to choose files. The image editor is optional."))
     code = application.exec()
     desktop.shutdown()
     desktop.menu.deleteLater()
     for card in desktop.cards:
         card.deleteLater()
-    if desktop.workbench:
-        desktop.workbench.deleteLater()
     desktop.tray.deleteLater()
     desktop.deleteLater()
     from PySide6.QtCore import QEvent

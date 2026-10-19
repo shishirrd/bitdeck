@@ -69,9 +69,19 @@ class ThemeManager:
                         "#101610": colors["display"], "#14181d": colors["display"], "#13181b": colors["display"],
                         "#92989f": colors["muted"], "#626975": colors["border"], "#151c10": selected_text,
                         "#a2ba70": colors["accent"]}
+        replacements.update({"#17191e": colors["panel"], "#30353c": colors["control"],
+            "#20252a": colors["control"], "#171c1f": colors["display"], "#171c20": colors["display"],
+            "#1b2220": colors["display"], "#303c32": colors["control"], "#3b4540": colors["control"],
+            "#2d3138": colors["control"], "#424c36": colors["control"], "#b7bdc5": colors["muted"],
+            "#a9b0b6": colors["muted"], "#777d85": colors["muted"], "#8b977b": colors["muted"],
+            "#d7ff87": QColor(colors["accent"]).lighter(112).name(),
+            "#e8ffb0": QColor(colors["accent"]).lighter(130).name(),
+            "#556b2d": QColor(colors["accent"]).darker(125).name(),
+            "#484f58": (QColor(colors["control"]).darker(104) if QColor(colors["control"]).lightness() > 180 else QColor(colors["control"]).lighter(112)).name()})
         pattern = re.compile("|".join(re.escape(color) for color in replacements), re.IGNORECASE)
         stylesheet = pattern.sub(lambda match: replacements[match.group().lower()], self.original_style)
         stylesheet += "\nQTableWidget { color: " + colors["accent"] + "; }"
+        stylesheet += "\nQTableWidget::item:selected { background: " + colors["control"] + "; color: " + colors["text"] + "; }"
         self.application.setStyleSheet(stylesheet)
         from . import app
         app.LIME, app.AMBER = colors["accent"], colors["secondary"]
@@ -87,6 +97,9 @@ class ThemeManager:
             output.write(json.dumps(theme).encode("utf-8"))
             if not output.commit():
                 raise OSError("Theme applied for this session; could not save settings.")
+
+    def soft_light(self):
+        self.apply({"name": "Soft light", "palette": dict(palette.SOFT_LIGHT), "header_png": ""}, persist=True)
 
     def reset(self):
         self.apply({"name": "BitDeck", "palette": dict(palette.DEFAULT), "header_png": ""})

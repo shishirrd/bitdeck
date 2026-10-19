@@ -62,9 +62,19 @@ def main():
             menu.popup(QPoint(400, 350), ["example.pdf"], drag=False)
             menu.toggle()
             menu.hover = 1
+            menu.settle()
             application.processEvents()
             if len(sys.argv) > 1:
                 menu.grab().save(sys.argv[1])
+            manager.soft_light()
+            manager2 = ThemeManager(application, menu, cache)
+            assert manager2.current['name'] == 'Soft light'
+            menu.set_hover(3)
+            menu.settle()
+            application.processEvents()
+            if len(sys.argv) > 1:
+                menu.grab().save(str(Path(sys.argv[1]).with_name('soft-light.png')))
+            manager.reset()
             runner.shutdown()
             runner.deleteLater()
             print("Theme integration passed: worker .wsz import, bitmap/color application, cache reload and default reset.")

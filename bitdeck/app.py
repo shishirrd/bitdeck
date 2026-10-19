@@ -24,8 +24,13 @@ STYLE = """
 QWidget { background: #22252b; color: #deded9; font-family: 'Segoe UI'; font-size: 12px; }
 QMainWindow { background: #17191e; }
 QFrame#panel { background: #282c33; border: 1px solid #454a52; border-bottom-color: #111318; border-right-color: #111318; }
+QFrame#resultCard { background: #282c33; border: 1px solid #626975; border-radius: 16px; }
+QFrame#resultCard QPushButton { border: 1px solid #626975; border-radius: 9px; padding: 6px 10px; }
+QLabel#resultTitle { color: #deded9; font: 600 14px 'Segoe UI'; }
 QLabel { background: transparent; border: none; }
 QLabel#dim { color: #92989f; }
+QLabel#brand { font: bold 26px Consolas; color: #deded9; letter-spacing: 5px; }
+QLabel#privacy { color: #92989f; }
 QLabel#section { color: #b7bdc5; font-family: Consolas; font-size: 11px; letter-spacing: 2px; }
 QLabel#display { color: #c4ee70; font-family: Consolas; font-size: 20px; background: #101610; padding: 10px; border: 1px solid #080b08; }
 QPushButton { background: #3b4048; border: 1px solid #626975; border-right-color: #13161b; border-bottom-color: #13161b; padding: 8px 12px; font-weight: 600; }
@@ -274,7 +279,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
         top = QHBoxLayout()
         brand = label("BITDECK", "section")
-        brand.setStyleSheet("font: bold 26px Consolas; color: #e3e6df; letter-spacing: 5px;")
+        brand.setObjectName("brand")
         top.addWidget(brand)
         top.addWidget(label("OPTIONAL IMAGE EDITOR", "dim"))
         top.addStretch()
@@ -356,7 +361,7 @@ class MainWindow(QMainWindow):
         knobs.addWidget(label("PRIVACY", "section"))
         privacy = label("+ Metadata removed by default\n+ Original file kept\n+ No uploads or telemetry", "dim")
         privacy.setFixedHeight(64)
-        privacy.setStyleSheet("color: #b0bca3; line-height: 1.5;")
+        privacy.setObjectName("privacy")
         knobs.addWidget(privacy)
         knobs.addStretch()
         knobs.addWidget(label("DESTINATION", "section"))
