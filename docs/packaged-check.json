@@ -83,6 +83,6 @@
       "ok": true
     }
   ],
-  "executable_sha256": "7d77532a177d47a6d27514719bb929e96d7cd11348285395144803d9db6d4724",
+  "executable_sha256": "5f3df428c34255353ee21165f4c5bebe97225d38c1fbfa2ffc15bd97be262f42",
   "path_policy": "Windows system directories only; Python environment overrides cleared"
 }

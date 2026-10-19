@@ -3,8 +3,9 @@
 **Drag a file. Press Shift. Drop on an action.**
 
 A Windows file utility inspired by DragShift's cursor workflow and Winamp's
-compact, tactile controls. Images, PDFs and plain text; no Office installation,
-no Word automation, no liquid glass. The image editor is an optional tool.
+compact, tactile controls. Convert images, rearrange PDFs, clean metadata and
+handle plain text from a menu near your cursor. Files are processed locally,
+and the portable Windows executable includes everything needed to run.
 
 ![BitDeck PDF actions at the cursor](docs/cursor-menu.png)
 
@@ -51,10 +52,15 @@ Enter applies it. Extra Shift presses leave the menu unchanged. Double-click the
 tray icon to choose files without dragging. One drop must contain one file family.
 
 Rounded wedges, cached soft shadows and eased highlights keep the wheel tactile.
+A rounded, lightly translucent backing panel keeps the wheel readable over busy
+desktop windows. Welcome, processing and result cards have solid themed surfaces
+and expand to fit wrapped text.
 Targets stay in place throughout the gesture; a small angular tolerance prevents
 selection flicker at boundaries. Action settings open in modeless sheets after
 the drop finishes, and processing feedback appears while the worker starts.
 Batch processing reuses one activity card and shows a completion summary.
+
+![BitDeck welcome card with a solid background and fully visible instructions](docs/tray-card.png)
 
 Choose **tray → Themes → Soft light** for warm white surfaces and a muted peach
 highlight, or keep the classic palette/import a `.wsz`. Windows' client animation
@@ -141,6 +147,9 @@ It is currently an unsigned Windows x64 prototype, not a signed installer.
 
 The app starts in the tray. Its runtime is unpacked into temporary storage while
 running. Keep the executable at a stable path if you enable Explorer integration.
+When updating, choose **Quit BitDeck** from the existing tray instance before
+launching the new executable. Opening another copy while BitDeck is running hands
+off to the existing instance.
 
 ## Classic Winamp skins (.wsz)
 
@@ -236,6 +245,6 @@ binary releases must include applicable notices and satisfy their terms.
 ## Next steps
 
 - Live Explorer/OLE and shell integration validation
-- Input PDF password prompt, richer image formats and editing tools
+- Richer image formats, presets and additional editing tools
 - Restricted worker filesystem/network access
 - Signed installer, binary provenance, presets and deeper skin mapping

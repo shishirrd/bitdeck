@@ -40,6 +40,9 @@ dispatch after their event handler returns, with duplicate activation blocked.
 hysteresis, fixed hit targets, scaled geometry, reduced motion, deferred dispatch,
 cancelled/late input, modeless settings, password-field clearing, immediate
 processing feedback and one shared batch activity card with final output access.
+It also checks the welcome card's opaque interior, transparent outside corners
+and enough height for wrapped instructions. The tray card paints its background
+explicitly rather than relying on a translucent top-level frame's stylesheet.
 The packed checks also construct/submit a modeless sheet and verify all radial
 targets plus deferred single dispatch in the actual executable. Screenshots are
 rendered Qt widgets, not mockups. These checks do not measure perceived smoothness
