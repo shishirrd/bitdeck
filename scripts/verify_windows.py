@@ -27,6 +27,7 @@ def main():
     result = json.loads(report.read_text(encoding="utf-8"))
     if process.returncode or not result.get("ok") or not result.get("frozen"):
         print(json.dumps(result, indent=2))
+        print(f"Packaged process exit: {process.returncode}; stderr: {process.stderr[:2000]!r}")
         raise SystemExit(1)
     result["executable_sha256"] = hashlib.sha256(executable.read_bytes()).hexdigest()
     result["path_policy"] = "Windows system directories only; Python environment overrides cleared"

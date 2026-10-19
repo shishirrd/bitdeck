@@ -85,7 +85,7 @@ def publish_no_replace(temporary, output):
         os.link(temporary, output)
 
 
-def publish_image(image, folder, stem, fmt, quality=85, before_publish=None):
+def publish_image(image, folder, stem, fmt, quality=85, before_publish=None, exif=b""):
     """Write an exclusive temp file, then publish atomically WITHOUT replacement.
 
     Windows rename refuses an existing destination; POSIX uses a no-replace link.
@@ -98,7 +98,7 @@ def publish_image(image, folder, stem, fmt, quality=85, before_publish=None):
     try:
         with os.fdopen(fd, "w+b") as stream:
             options = {"quality": quality} if fmt in {"JPEG", "WEBP"} else {"optimize": True}
-            image.save(BoundedWriter(stream), format=fmt, **options)
+            image.save(BoundedWriter(stream), format=fmt, **options, **({"exif": exif} if exif else {}))
             stream.flush()
             os.fsync(stream.fileno())
         if before_publish:
@@ -137,14 +137,6 @@ def run_job(job):
     if job.get("expected_sha256") and job["expected_sha256"] != fingerprint:
         raise JobError("Source changed since preview. Select the image again before exporting.")
     original_size = list(image.size)
-    if job["operation"] == "inspect":
-        image.thumbnail((1000, 640), Image.Resampling.LANCZOS)
-        import base64
-        preview = io.BytesIO()
-        image.save(preview, "PNG")
-        return {"ok": True, "width": original_size[0], "height": original_size[1],
-                "format": original_format, "input_bytes": input_bytes, "sha256": fingerprint,
-                "preview": base64.b64encode(preview.getvalue()).decode("ascii")}
     fmt = job.get("format", "PNG")
     if fmt not in FORMATS:
         raise JobError("Unsupported output format.")
@@ -165,8 +157,23 @@ def run_job(job):
                      min(image.width - 1, math.ceil(x1 * image.width)),
                      min(image.height - 1, math.ceil(y1 * image.height)))
         draw.rectangle(rectangle, fill=(0, 0, 0, 255) if image.mode == "RGBA" else (0, 0, 0))
+    from .image_tools import edit_image, metadata
+    image = edit_image(image, job)
     if long_edge and max(image.size) > long_edge:
         image.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
+    policy = job.get("metadata_policy", "remove_all")
+    if policy not in {"remove_all", "remove_gps", "keep_exif"}:
+        raise JobError("Invalid metadata policy.")
+    tags, exif = metadata(source, policy, fingerprint) if job["operation"] == "inspect" or policy != "remove_all" else ({}, b"")
+    if job["operation"] == "inspect":
+        import base64
+        width, height = image.size
+        image.thumbnail((1000, 640), Image.Resampling.LANCZOS)
+        preview = io.BytesIO()
+        image.save(preview, "PNG")
+        return {"ok": True, "width": width, "height": height,
+                "format": original_format, "input_bytes": input_bytes, "sha256": fingerprint,
+                "metadata": tags, "preview": base64.b64encode(preview.getvalue()).decode("ascii")}
     if fmt == "JPEG" and image.mode == "RGBA":
         background = Image.new("RGB", image.size, "white")
         background.paste(image, mask=image.getchannel("A"))
@@ -177,9 +184,9 @@ def run_job(job):
     if not isinstance(folder, str) or not folder or len(folder) > 32_000:
         raise JobError("Choose an output folder.")
     stem = Path(source).stem[:120] + " - bitdeck"
-    output = publish_image(image, folder, stem, fmt, quality)
+    output = publish_image(image, folder, stem, fmt, quality, exif=exif)
     stat = output.stat()
     return {"ok": True, "output": str(output.resolve()), "input_bytes": input_bytes,
             "output_bytes": stat.st_size, "identity": [stat.st_ino, stat.st_size, stat.st_mtime_ns],
             "width": image.width, "height": image.height,
-            "original_size": original_size, "redactions": len(boxes), "metadata_removed": True}
+            "original_size": original_size, "redactions": len(boxes), "metadata_removed": policy == "remove_all", "metadata_policy": policy}

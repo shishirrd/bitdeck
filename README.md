@@ -21,12 +21,12 @@ Drop in the center to choose afterward. Escape closes the menu. In click mode,
 Tab switches Convert/Tools, arrows select, and Enter applies. Double-click the
 tray icon to choose files without dragging. One drop must contain one file family.
 
-## Implemented in v0.3
+## Implemented in v0.4
 
 | Input | Convert | Tools |
 | --- | --- | --- |
-| PNG, JPEG, WebP | PNG, JPEG, WebP; one or several images to one PDF | Compress, resize, opaque redaction in the optional editor, remove image metadata |
-| PDF | PNG/JPEG per page; existing text layer to UTF-8 TXT | Lossless compression, split, rotate, merge in drop order, AES-256 protection, extract embedded images, clear document Info/XMP |
+| PNG, JPEG, WebP | PNG, JPEG, WebP; one or several images to one PDF | Compress, resize, crop, rotate, flip, opaque redaction, arrows/boxes/marker/text/steps, inspect and control metadata |
+| PDF | Selected pages to PNG/JPEG; existing text layer to UTF-8 TXT | Page preview, ranges, drag reordering, merge, omit/rotate pages, split, lossless compression, AES-256 protection, password input/decrypted copies, embedded images, inspect/edit/clear metadata |
 | Text | Paginated PDF; normalize to UTF-8 TXT | The same two plain-text operations |
 
 Text suffixes include `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.log`, `.xml`,
@@ -40,16 +40,62 @@ may yield no text. Text PDFs embed Windows Consolas when available; font coverag
 and complex-script shaping are limited. Lossless PDF compression may not reduce
 size. Clearing document metadata is not full PDF sanitization.
 
-**Word files are deliberately excluded.** HEIC/AVIF/TIFF inputs, crop/annotation
-editors, OCR, autostart registration and signed installers are not included.
+**Word files are deliberately excluded.** HEIC/AVIF/TIFF inputs,
+OCR, autostart registration and signed installers are not included.
 This prototype does not claim full DragShift feature parity.
+
+### Image tools
+
+Choose **Tools → Edit image** at the cursor, or **tray → Image editor** and
+**Metadata / Crop / Annotate**. Tools use the selected image. Draw a crop or
+enter percentage bounds; 1:1, 4:3 and 16:9 buttons make centered crops. Rotate
+clockwise and flip horizontally/vertically. Choose an annotation tool, color,
+stroke/font size and text, then drag on the original preview. **Preview output**
+shows the rendered result before export. Edits apply in this order: opaque
+redactions, annotations, crop, rotation, flips, resize, encoding.
+
+Metadata is removed by default. Explicit options retain common descriptive and
+camera EXIF with or without standard GPS tags. Unknown fields, maker notes,
+embedded thumbnails, XMP, text chunks and profiles are not retained. GPS removal
+does not remove place names in descriptions or visible pixels. Metadata displays
+are local; there are no map lookups. Marks and crops belong to each individual
+image. **Export all** captures current encoder settings and each image's own
+edits. Pause/resume, cancel and retry use captured settings.
+
+### PDF controls and batch jobs
+
+Open **tray → PDF controls** or **Tools → Page controls** at the cursor. Add PDFs,
+select a page to preview, drag rows or use Up/Down to reorder, remove unwanted
+pages, rotate selected pages and **Save arrangement**. This writes a new merged
+PDF from the displayed arrangement. Closing PDF controls discards its arrangement
+and releases input passwords; queued jobs keep their captured inputs until done.
+
+Document actions target the chosen source, independently of the arrangement.
+An empty page range means all original pages; `1-3,5,8-6` supports ordering and
+reverse ranges. A document action writes only the requested pages. Input
+passwords are prompted when loading encrypted PDFs. PDF metadata controls expose
+Title, Author, Subject and Keywords; clearing Info/XMP is not content sanitization.
+The PDF backend uses **pypdf**. This is page/document manipulation, not a PDF
+text-layout editor, OCR engine or interactive form editor.
+
+![BitDeck PDF page controls](docs/pdf-controls.png)
+
+**Tray → Batch queue / results** shows cursor/PDF jobs, captured settings,
+per-file success/failure, completed-job progress and output folders. Multi-file
+actions show the monitor automatically. Pause takes effect between jobs; cancel
+can stop selected jobs or the entire queue. A failed file does not stop later
+files. Retry uses the original settings; password jobs must be requeued through
+PDF controls so secrets are not retained in completed history. The queue is
+session-only, capped at 200 jobs, and its monitor can close while work continues.
 
 ## Windows users: run the executable
 
 Double-click the portable **BitDeck.exe**. Python, Qt, image/PDF libraries and the
 conversion worker are bundled. **No Python or pip installation is required.**
-The executable lives in the local `windows/` build folder and is supplied alongside
-the source for review. A public GitHub download release has not been published.
+The Windows checks workflow builds the app and uploads a `BitDeck-Windows-x64`
+artifact containing the portable executable, ZIP and checksums. Use a successful
+run under **Actions → Windows checks** to obtain a build, or build locally into
+`windows/` using the instructions below. A tagged download release is not yet published.
 It is currently an unsigned Windows x64 prototype, not a signed installer.
 
 The app starts in the tray. Its runtime is unpacked into temporary storage while
@@ -122,9 +168,10 @@ export: 50 pages. Text: 2 MiB / 500,000 characters. Combined inputs: 50 files.
 
 Exclusive temporary files and atomic no-replace publication avoid overwrites.
 Ordinary document failures roll back their outputs; forced cancellation may leave
-partial/completed outputs or temporary files. Image exports rebuild metadata-free
-pixels; redaction uses opaque black boxes. Only editor exports bind their source
-to the inspected SHA-256. The app has no intentional network requests or telemetry.
+partial/completed outputs or temporary files. Image exports rebuild image
+pixels and remove metadata by default; redaction uses opaque black boxes.
+Inspected image/PDF exports bind their source to the inspected SHA-256.
+The app has no intentional network requests or telemetry.
 See [SECURITY.md](SECURITY.md).
 
 ## Development
@@ -135,8 +182,8 @@ New-Item -ItemType Directory -Force work | Out-Null
 .\.venv\Scripts\python.exe -m pytest -q --basetemp=work/test-data
 ```
 
-Windows CI is configured with pinned actions; it has not run on GitHub because
-publication is paused. See [architecture](docs/architecture.md).
+Windows CI runs on pushes and pull requests using pinned actions. Check the
+repository's Actions tab for hosted results. See [architecture](docs/architecture.md).
 
 ## Attribution and license
 

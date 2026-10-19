@@ -1,2 +1,2 @@
-"""BitDeck — a compact image workbench."""
-__version__ = "0.3.0"
+"""BitDeck — a cursor-first image, PDF and text utility."""
+__version__ = "0.4.0"

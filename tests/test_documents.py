@@ -96,7 +96,7 @@ def test_render_budget_and_rollback(pdf, monkeypatch):
     monkeypatch.setattr(documents, "MAX_RENDER_PAGES", 1)
     with pytest.raises(core.JobError, match="50 PDF pages"):
         core.run_job(job(pdf, "pdf_to_png"))
-    assert not list((pdf.parent / "out").iterdir())
+    assert not (pdf.parent / "out").exists() or not list((pdf.parent / "out").iterdir())
 
 
 def test_partial_split_failure_rolls_back(pdf, monkeypatch):

@@ -1,15 +1,17 @@
-# Local validation — v0.3
+# Local validation — v0.4
 
 18 October 2026. Windows x64, Python 3.10.11. Exact package versions and Windows
 wheel hashes are in the runtime/development lock files.
 
-Source regression result: **62 passed, 1 skipped**. The skip is the live
+Source regression result: **76 passed, 1 skipped**. The skip is the live
 user-restricted named-pipe test below. Theme-specific checks also passed after
 light-theme readability fixes. Tests cover archive path traversal, duplicate
 assets, file-count limits, color/style injection, PNG dimension limits, worker
 skin import, rendering, saved settings, reload and default reset.
 
-The executable passed **10 packaged checks** with Python/developer tools removed
+The executable passed **18 packaged checks** and exited cleanly. Verification
+covers the image/PDF controls as well as the earlier conversion and theme paths,
+with Python/developer tools removed
 from PATH and Python-related environment variables cleared: image preview/export,
 text-to-PDF, PDF raster/text extraction, merge/split, AES-256 protection, classic
 .wsz import and Qt theme application/reset. Python and UI/worker dependencies are
@@ -29,6 +31,17 @@ outputs and the mocked Shift polling state machine. The screenshot captures the
 actual cursor menu. This does not prove real Explorer/OLE drag behavior.
 `scripts/smoke_ui.py` covers the optional editor and simulated Undo failures.
 
+`scripts/smoke_editing.py` drives the actual image tool controls and workers for
+crop/rotation/annotation, then PDF preview, page rotation/reordering/assembly,
+range export, and queue pause/cancel/retry with a deliberately failed file followed
+by a successful file. It checks that queue requests capture settings independently
+of later mutation and treats Qt callback exceptions as failures. Backend tests
+check GPS retention/removal, transformed pixels/dimensions, repeated/reversed PDF
+pages and independent rotations, encrypted preview/decrypted output, metadata
+editing, changed-source rejection and oversized/invalid range expressions.
+
+![PDF controls with an arranged document](pdf-controls.png)
+
 The sandbox denies QLocalServer's user-restricted named pipe with
 `QLocalServerPrivate::addListener: Access is denied.` Payload schema checks are
 separate, but live receiver verification is skipped when that happens.
@@ -46,6 +59,7 @@ New-Item -ItemType Directory -Force work | Out-Null
 The pip-audit lookup found no known advisories for pinned runtime packages at
 review time; see dependency-audit.json. This does not fully audit bundled native
 PDFium/Qt libraries or prove absence of flaws. CI is configured for Windows with
-pinned actions. GitHub publication and hosted CI remain paused; no signed release
-or full desktop validation is claimed. An unsigned portable executable is provided
+pinned actions. Hosted results are shown separately in GitHub Actions; the results
+above describe local verification. No signed release or full desktop validation
+is claimed. An unsigned portable executable is provided
 for local review; its Windows ZIP includes the machine-readable packaged checks.

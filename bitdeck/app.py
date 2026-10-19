@@ -35,7 +35,10 @@ QPushButton:disabled { color: #777d85; background: #2d3138; border-color: #373c4
 QPushButton#primary { color: #151c10; background: #c4ee70; border-top-color: #e8ffb0; border-left-color: #e8ffb0; border-right-color: #556b2d; border-bottom-color: #556b2d; }
 QPushButton#primary:hover { background: #d7ff87; }
 QPushButton#primary:disabled { background: #424c36; color: #8b977b; border-color: #424c36; }
-QComboBox, QSpinBox { background: #14181d; border: 1px solid #535963; padding: 7px; color: #e8b768; font-family: Consolas; }
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit, QPlainTextEdit { background: #14181d; border: 1px solid #535963; padding: 7px; color: #e8b768; font-family: Consolas; }
+QListWidget { background: #13181b; color: #deded9; border: 1px solid #535963; }
+QListWidget::item { padding: 7px; }
+QListWidget::item:selected { background: #3b4048; color: #c4ee70; }
 QComboBox QAbstractItemView { background: #20252a; color: #e8b768; selection-background-color: #3b4540; }
 QSlider::groove:horizontal { background: #111518; height: 6px; border: 1px solid #080b0e; }
 QSlider::sub-page:horizontal { background: #a2ba70; }
@@ -104,6 +107,7 @@ class Spectrum(QWidget):
 class Canvas(QWidget):
     changed = Signal()
     filesDropped = Signal(list)
+    selectionMade = Signal(list)
 
     def __init__(self):
         super().__init__()
@@ -113,6 +117,9 @@ class Canvas(QWidget):
         self.setAccessibleName("Image preview. Enable Draw boxes to add opaque redactions with the mouse.")
         self.pixmap = QPixmap()
         self.boxes = []
+        self.edits = {}
+        self.source_width = 1
+        self.tool = "redact"
         self.anchor = None
         self.cursor_point = None
         self.drawing = False
@@ -160,6 +167,27 @@ class Canvas(QWidget):
             painter.fillRect(self.box_rect(box), Qt.black)
             painter.setPen(QPen(QColor(LIME), 1))
             painter.drawRect(self.box_rect(box))
+        for entry in self.edits.get("annotations", []):
+            box = self.box_rect(entry["box"])
+            painter.setPen(QPen(QColor(entry["color"]), max(1, entry["width"] * rect.width() / self.source_width)))
+            if entry["kind"] == "box":
+                painter.drawRect(box)
+            elif entry["kind"] in {"arrow", "marker"}:
+                painter.drawLine(box.topLeft(), box.bottomRight())
+                if entry["kind"] == "arrow":
+                    import math
+                    a, b = box.topLeft(), box.bottomRight()
+                    angle = math.atan2(b.y()-a.y(), b.x()-a.x())
+                    for offset in (-.5, .5):
+                        painter.drawLine(b, QPointF(b.x()-12*math.cos(angle+offset), b.y()-12*math.sin(angle+offset)))
+            else:
+                font = QFont("Segoe UI")
+                font.setPixelSize(max(1, int(entry["size"] * rect.width() / self.source_width)))
+                painter.setFont(font)
+                painter.drawText(box, Qt.AlignLeft | Qt.AlignTop, entry["text"])
+        if self.edits.get("crop"):
+            painter.setPen(QPen(QColor("#ffcc00"), 2, Qt.DashLine))
+            painter.drawRect(self.box_rect(self.edits["crop"]))
         if self.anchor is not None and self.cursor_point is not None:
             current = QRectF(self.anchor, self.cursor_point).normalized()
             painter.setPen(QPen(QColor(LIME), 1, Qt.DashLine))
@@ -181,7 +209,13 @@ class Canvas(QWidget):
         if self.anchor is not None:
             a, b = self.normalized(self.anchor), self.normalized(self.cursor_point)
             if abs(a.x() - b.x()) > .002 and abs(a.y() - b.y()) > .002 and len(self.boxes) < 100:
-                self.boxes.append([min(a.x(), b.x()), min(a.y(), b.y()), max(a.x(), b.x()), max(a.y(), b.y())])
+                box = [min(a.x(), b.x()), min(a.y(), b.y()), max(a.x(), b.x()), max(a.y(), b.y())]
+                if self.tool == "redact":
+                    self.boxes.append(box)
+                else:
+                    if self.tool in {"arrow", "marker"}:
+                        box = [a.x(), a.y(), b.x(), b.y()]
+                    self.selectionMade.emit(box)
                 self.changed.emit()
             self.anchor = self.cursor_point = None
             self.update()
@@ -208,6 +242,9 @@ class Item:
     result: dict = field(default_factory=dict)
     boxes: list = field(default_factory=list)
     fingerprint: str = ""
+    edits: dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
+    dimensions: list = field(default_factory=list)
 
 
 class MainWindow(QMainWindow):
@@ -223,6 +260,8 @@ class MainWindow(QMainWindow):
         self.inspect_index = None
         self.output_override = None
         self.closing = False
+        self.paused = False
+        self.tools = None
         self.runner = WorkerRunner(self)
         self.inspector = WorkerRunner(self)
         self.runner.completed.connect(self.export_finished)
@@ -313,8 +352,9 @@ class MainWindow(QMainWindow):
         self.box_count = label("00 boxes · opaque black only", "dim")
         knobs.addWidget(self.box_count)
         knobs.addSpacing(4)
+        knobs.addWidget(button("METADATA / CROP / ANNOTATE…", self.show_tools, "Inspect tags, crop, transform and annotate the selected image"))
         knobs.addWidget(label("PRIVACY", "section"))
-        privacy = label("+ Metadata removed on export\n+ Original file kept\n+ No uploads or telemetry", "dim")
+        privacy = label("+ Metadata removed by default\n+ Original file kept\n+ No uploads or telemetry", "dim")
         privacy.setFixedHeight(64)
         privacy.setStyleSheet("color: #b0bca3; line-height: 1.5;")
         knobs.addWidget(privacy)
@@ -347,6 +387,10 @@ class MainWindow(QMainWindow):
         self.queue_count = label("00 FILES  /  00 COMPLETE", "section")
         queue_actions.addWidget(self.queue_count)
         queue_actions.addStretch()
+        queue_actions.addWidget(button("EXPORT ALL", self.queue_all, "Apply encoder settings to all ready images; keep each image's edits"))
+        self.pause_button = button("PAUSE", self.pause_queue, "Pause between files")
+        queue_actions.addWidget(self.pause_button)
+        queue_actions.addWidget(button("RETRY FAILED", self.retry_failed, "Retry failed and cancelled jobs with captured settings"))
         self.open_output_button = button("OPEN OUTPUT", self.open_output, "Open the selected completed output folder")
         queue_actions.addWidget(self.open_output_button)
         self.undo_button = button("UNDO EXPORT", self.undo_export, "Move the selected output to the Recycle Bin. Never permanently deletes.")
@@ -415,6 +459,9 @@ class MainWindow(QMainWindow):
         self.current_index = rows[0].row() if rows else -1
         item = self.selected()
         self.canvas.boxes = item.boxes if item else []
+        self.canvas.edits = item.edits if item else {}
+        if self.tools:
+            self.tools.sync()
         self.canvas.pixmap = QPixmap()
         self.canvas.loading = bool(item)
         self.canvas.update()
@@ -452,8 +499,14 @@ class MainWindow(QMainWindow):
             item = self.selected()
             if item.fingerprint and item.fingerprint != result["sha256"]:
                 item.boxes.clear()
+                item.edits.clear()
                 self.boxes_changed()
             item.fingerprint = result["sha256"]
+            item.metadata = result.get("metadata", {})
+            item.dimensions = [result["width"], result["height"]]
+            self.canvas.source_width = max(1, result["width"])
+            if self.tools:
+                self.tools.sync()
             self.file_info.setText(f"{Path(self.selected().source).name}   /   {result['width']} × {result['height']} px   /   {result['format']}   /   {human_bytes(result['input_bytes'])}")
             self.lcd.setText(f"{result['width']:04} × {result['height']:04}  /  {result['format']}")
             self.status.setText("INPUT READY  ·  Tune the rack, then queue an export.")
@@ -518,7 +571,8 @@ class MainWindow(QMainWindow):
         item = self.selected()
         if not item or item.state in {"QUEUED", "WORKING"} or self.canvas.pixmap.isNull():
             return
-        item.request = {"operation": "export", "source": item.source,
+        from copy import deepcopy
+        item.request = {**deepcopy(item.edits), "operation": "export", "source": item.source,
                         "output_dir": self.output_override or str(Path(item.source).parent / "BitDeck"),
                         "format": self.format.currentText(), "quality": self.quality.value(),
                         "expected_sha256": item.fingerprint,
@@ -528,8 +582,40 @@ class MainWindow(QMainWindow):
         self.refresh_table()
         self.start_next()
 
+    def show_tools(self):
+        if self.tools is None:
+            from .image_ui import ImageTools
+            self.tools = ImageTools(self)
+        self.tools.sync()
+        self.tools.show()
+        self.tools.raise_()
+
+    def queue_all(self):
+        from copy import deepcopy
+        for item in self.items:
+            if item.state in {"READY", "FAILED", "CANCELLED", "UNDONE"}:
+                item.request = {**deepcopy(item.edits), "operation": "export", "source": item.source,
+                    "format": self.format.currentText(), "quality": self.quality.value(), "long_edge": self.long_edge.value(),
+                    "output_dir": self.output_override or str(Path(item.source).parent / "BitDeck"),
+                    "redactions": deepcopy(item.boxes), "expected_sha256": item.fingerprint}
+                item.state, item.detail = "QUEUED", "Settings captured"
+        self.refresh_table()
+        self.start_next()
+
+    def pause_queue(self):
+        self.paused = not self.paused
+        self.pause_button.setText("RESUME" if self.paused else "PAUSE")
+        self.start_next()
+
+    def retry_failed(self):
+        for item in self.items:
+            if item.state in {"FAILED", "CANCELLED"} and item.request:
+                item.state, item.detail = "QUEUED", "Retrying captured settings"
+        self.refresh_table()
+        self.start_next()
+
     def start_next(self):
-        if self.closing or self.runner.busy:
+        if self.closing or self.paused or self.runner.busy:
             return
         for index, item in enumerate(self.items):
             if item.state == "QUEUED":
@@ -578,7 +664,7 @@ class MainWindow(QMainWindow):
     def refresh_controls(self):
         item = self.selected()
         self.export_button.setEnabled(bool(item and item.state not in {"QUEUED", "WORKING"} and not self.canvas.pixmap.isNull()))
-        self.cancel_button.setEnabled(self.runner.busy or self.running_index is not None)
+        self.cancel_button.setEnabled(self.runner.busy or self.running_index is not None or any(i.state == "QUEUED" for i in self.items))
         completed = bool(item and item.state == "DONE" and item.result.get("output"))
         self.open_output_button.setEnabled(completed)
         self.undo_button.setEnabled(completed)
@@ -626,6 +712,8 @@ class MainWindow(QMainWindow):
         self.closing = True
         self.runner.shutdown()
         self.inspector.shutdown()
+        if self.tools:
+            self.tools.preview_runner.shutdown()
         event.accept()
 
 

@@ -94,9 +94,12 @@ class Desktop(QObject):
         self.watcher.toggle.connect(self.menu.toggle)
         self.watcher.cancelled.connect(lambda: self.menu.hide() if self.menu.drag_mode else None)
         self.watcher.start()
-        self.runner = WorkerRunner(self)
-        self.runner.completed.connect(self.finished)
-        self.queue = []
+        from .batch import BatchWindow
+        self.batch = BatchWindow()
+        self.runner = self.batch.runner
+        self.batch.jobFinished.connect(self.batch_finished)
+        self.queue = self.batch.pending
+        self.pdf_window = None
         self.active = None
         self.cards = []
         self.workbench = None
@@ -164,13 +167,31 @@ class Desktop(QObject):
         self.workbench.raise_()
         self.workbench.activateWindow()
 
+    def show_pdf(self, paths=None):
+        if self.pdf_window is None:
+            from .pdf_ui import PDFWindow
+            self.pdf_window = PDFWindow(self.batch)
+        self.pdf_window.show()
+        self.pdf_window.raise_()
+        if isinstance(paths, list):
+            self.pdf_window.add_files(paths)
+
+    def batch_finished(self, request, result):
+        self.active = request
+        self.finished(result)
+
     def choose(self, key, paths):
         if not paths:
             return
-        if key == "workbench":
+        if key == "pdf_controls":
+            self.show_pdf(paths)
+            return
+        if key in {"image_controls", "workbench"}:
             self.show_workbench(paths)
             self.workbench.draw_button.setChecked(True)
             self.workbench.toggle_drawing()
+            if key == "image_controls":
+                self.workbench.show_tools()
             return
         requests = []
         if key == "import_theme":
@@ -223,16 +244,10 @@ class Desktop(QObject):
         if len(self.queue) + len(requests) > 200:
             self.notify("QUEUE FULL", "Wait for pending actions before adding more (200-job limit).")
             return
-        self.queue.extend(requests)
-        self.start_next()
+        self.batch.submit(requests, show=len(requests) > 1)
 
     def start_next(self):
-        if self.runner.busy or not self.queue:
-            return
-        self.active = self.queue.pop(0)
-        self.tray.setToolTip(f"BitDeck · {self.active['operation']} · {len(self.queue)} pending")
-        self.notify("PROCESSING", f"{Path(self.active['source']).name}\n{self.active['operation'].replace('_', ' ')} · originals kept")
-        self.runner.start(self.active)
+        self.batch.start_next()
 
     def finished(self, result):
         operation = self.active["operation"] if self.active else "action"
@@ -250,13 +265,9 @@ class Desktop(QObject):
             self.notify("SAVED / " + operation.replace("_", " ").upper(), detail, result)
         else:
             self.notify("ACTION STOPPED", result.get("error", "Could not process this file."))
-        if self.queue:
-            # Let the result remain visible briefly before the next job takes over.
-            QTimer.singleShot(1400, self.start_next)
 
     def cancel(self):
-        self.queue.clear()
-        self.runner.stop()
+        self.batch.cancel_all()
 
     def import_skin(self):
         path, _ = QFileDialog.getOpenFileName(self.menu, "Import a classic Winamp skin", "", "Winamp classic skin (*.wsz)")
@@ -306,7 +317,12 @@ class Desktop(QObject):
         self.tray.hide()
         if self.instance:
             self.instance.close()
+        self.batch.hide()
+        if self.pdf_window:
+            self.pdf_window.close()
         if self.workbench:
+            if self.workbench.tools:
+                self.workbench.tools.preview_runner.shutdown()
             self.workbench.closing = True
             self.workbench.close()
         for card in self.cards:

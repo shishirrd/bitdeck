@@ -24,7 +24,7 @@ Encoding and source parsing occur in a worker. Workers receive a Windows Job
 Object before the UI sends the request that enables parsing.
 
 The parent bounds reply size and elapsed time. Each worker bounds its input and
-output bytes, rebuilds metadata-free image pixels and publishes through an exclusive
+output bytes, rebuilds image pixels (metadata removed by default) and publishes through an exclusive
 temporary file plus no-replace Windows rename (hard link on POSIX). Path names are derived from source file
 names rather than document-controlled metadata. Results are shown as plain text.
 
@@ -70,6 +70,19 @@ normal typing is not recorded.
   No external resources are fetched. Font coverage and complex scripts are limited.
 - Metadata removal does not anonymize visible content or file names, scrub
   filesystem timestamps, or remove metadata from original files.
+- EXIF retention is explicit and limited to common descriptive/capture fields,
+  optionally standard GPS. Opaque maker notes, original thumbnails, XMP, text
+  chunks and profiles are dropped. Retained descriptions can identify a place
+  even when GPS tags are removed. Metadata inspection rechecks the source hash
+  against the decoded pixels to avoid mixing two versions of a file.
+- PDF input/output passwords are held in memory for active controls/pending
+  jobs, never saved to settings or completed job history. Closing PDF controls
+  clears their arrangement/passwords. Python strings cannot guarantee secure
+  erasure from memory. Password jobs require re-entry instead of history retry.
+- PDF page removal and cropping are editing operations, not a security scrub of
+  referenced objects, hidden content, links, attachments, actions or signatures.
+  Editing may invalidate digital signatures and does not preserve every document
+  feature (for example interactive form behavior or outlines).
 - Dependency pins/hashes improve repeatability, not immunity to dependency flaws.
   The local portable binary is unsigned; it has not been independently reviewed.
 

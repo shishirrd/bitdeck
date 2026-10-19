@@ -27,3 +27,11 @@ def test_wsz_import_apply_reload_and_reset():
                             env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
                             capture_output=True, text=True, timeout=45)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_image_pdf_controls_and_batch_queue():
+    root = Path(__file__).parents[1]
+    result = subprocess.run([sys.executable, str(root / "scripts" / "smoke_editing.py")], cwd=root,
+                            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                            capture_output=True, text=True, timeout=100)
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -8,6 +8,8 @@ flowchart TD
     Handoff --> Wheel
     Wheel --> Queue[Structured action queue]
     Wheel --> Editor[Optional image editor]
+    Wheel --> Pages[Optional PDF page workspace]
+    Pages --> Queue
     Queue --> Controller[WorkerRunner + Windows Job Object]
     Editor --> Controller
     Controller --> Worker[Short-lived worker]
@@ -24,12 +26,28 @@ flowchart TD
     Outputs --> Card[Result / folder / safe Undo]
 ```
 
-`desktop.py` owns tray lifetime, action queues and results. `trigger.py` polls
+`desktop.py` owns tray lifetime and result cards; `batch.py` owns cursor/PDF job
+history, captured requests, sequential dispatch, pause, cancellation and retry.
+`trigger.py` polls
 mouse, Shift and Escape only. `radial.py` receives file drops, checks families,
 and accepts CopyAction. File contents are read only in a worker after selection.
 `actions.py` supplies families/actions; `core.py` handles images and delegates to
 `documents.py` for PDFs/text. The editor is optional, with worker-generated previews
 and source fingerprint matching. It is not the primary application window.
+
+`image_ui.py` attaches metadata, crop, transform and annotation controls to the
+existing image editor. Worker-only `image_tools.py` validates normalized drawing
+coordinates, renders annotations/transforms, inspects metadata and rebuilds an
+allowlisted EXIF tree on opt-in. Opaque maker notes/original thumbnails are never
+copied. Redactions/annotations use oriented source coordinates, followed by crop,
+rotation, flips and resizing. Output previews use the same processing path.
+
+`pdf_ui.py` maintains an ordered page plan containing source index, page index
+and clockwise rotation. Files are inspected and rendered by workers; exports
+verify inspected source fingerprints. `page_ranges.py` provides pure, bounded
+range validation to both sides without importing PDF decoders in the UI.
+Password strings stay in memory for controls/pending jobs and are removed from
+completed history. Closing the PDF workspace clears its arrangement/passwords.
 
 `runner.py` applies limits and bounded child-process IPC. `ipc.py` is a separate,
 bounded user-only named pipe for instance handoff. Its messages can open file

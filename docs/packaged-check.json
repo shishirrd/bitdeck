@@ -35,6 +35,38 @@
       "ok": true
     },
     {
+      "operation": "pdf_inspect",
+      "ok": true
+    },
+    {
+      "operation": "pdf_preview",
+      "ok": true
+    },
+    {
+      "operation": "pdf_unlock",
+      "ok": true
+    },
+    {
+      "operation": "pdf_organize",
+      "ok": true
+    },
+    {
+      "operation": "pdf_split",
+      "ok": true
+    },
+    {
+      "operation": "pdf_edit_metadata",
+      "ok": true
+    },
+    {
+      "operation": "export",
+      "ok": true
+    },
+    {
+      "operation": "editing_controls_construct",
+      "ok": true
+    },
+    {
       "operation": "import_theme",
       "ok": true
     },
@@ -43,6 +75,6 @@
       "ok": true
     }
   ],
-  "executable_sha256": "399a317ad8a8ba1d46db4170b2a0e351ce0510d6540459c3126a105794a483b7",
+  "executable_sha256": "060a5389258d611ec69691d9663620ec756ef0e7df82d8e962ce96e5d83abca9",
   "path_policy": "Windows system directories only; Python environment overrides cleared"
 }

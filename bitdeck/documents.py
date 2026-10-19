@@ -19,8 +19,17 @@ MAX_OUTPUT_FILES = 200
 MAX_TEXT_BYTES = 2 * 1024 * 1024
 MAX_TEXT_CHARS = 500_000
 OPERATIONS = {"pdf_to_png", "pdf_to_jpeg", "pdf_to_text", "pdf_compress", "pdf_split", "pdf_rotate", "pdf_merge",
-              "pdf_protect", "pdf_extract", "pdf_metadata", "text_to_pdf", "text_normalize", "images_to_pdf"}
+              "pdf_protect", "pdf_extract", "pdf_metadata", "pdf_inspect", "pdf_preview", "pdf_organize", "pdf_unlock", "pdf_edit_metadata", "text_to_pdf", "text_normalize", "images_to_pdf"}
 
+
+from .page_ranges import page_indices as _page_indices
+
+
+def page_indices(expression, count):
+    try:
+        return _page_indices(expression, count)
+    except ValueError as error:
+        raise JobError(str(error)) from error
 
 def read_bytes(path, limit=MAX_INPUT):
     path = Path(path)
@@ -39,13 +48,13 @@ class Outputs:
     """Atomic no-replace publication with an aggregate job budget and rollback."""
     def __init__(self, folder, stem):
         self.folder = Path(folder)
-        self.folder.mkdir(parents=True, exist_ok=True)
         self.stem = stem[:120]
         self.paths = []
         self.identities = []
         self.total = 0
 
     def add(self, extension, write, label=""):
+        self.folder.mkdir(parents=True, exist_ok=True)
         if len(self.paths) >= MAX_OUTPUT_FILES:
             raise JobError("Output file limit reached (200 files per job).")
         fd, name = tempfile.mkstemp(prefix=".bitdeck-", suffix=".part", dir=self.folder)
@@ -92,7 +101,7 @@ def pdf_reader(data, password=""):
         raise JobError("This file does not contain a supported PDF header.")
     reader = PdfReader(io.BytesIO(data))
     if reader.is_encrypted and not reader.decrypt(password):
-        raise JobError("This PDF needs its input password. Use a decrypted copy for now.")
+        raise JobError("This PDF needs a valid input password.")
     if not 0 < len(reader.pages) <= MAX_PAGES:
         raise JobError("PDFs must contain 1–200 pages.")
     return reader
@@ -204,22 +213,53 @@ def run_document_job(job):
                 total_input += len(raw)
                 if total_input > MAX_INPUT:
                     raise JobError("Combined input exceeds 64 MiB.")
-                readers.append(pdf_reader(raw, job.get("input_password", "")))
+                passwords = job.get("input_passwords", {})
+                password = passwords.get(source, job.get("input_password", "")) if isinstance(passwords, dict) else ""
+                readers.append(pdf_reader(raw, password))
+                expected = job.get("fingerprints", {}).get(source)
+                if expected and hashlib.sha256(raw).hexdigest() != expected:
+                    raise JobError("A PDF changed since inspection. Reload it before exporting.")
                 raw_inputs.append(raw)
-            if operation != "pdf_merge" and len(readers) != 1:
+            if operation not in {"pdf_merge", "pdf_organize"} and len(readers) != 1:
                 raise JobError("Use one PDF for this action.")
             pages_processed = sum(len(reader.pages) for reader in readers)
             if pages_processed > MAX_PAGES:
                 raise JobError("Combined PDF exceeds 200 pages.")
             reader = readers[0]
+            selected = page_indices(job.get("page_range", ""), len(reader.pages))
+            if operation == "pdf_inspect":
+                return {"ok": True, "pages": len(reader.pages), "sha256": hashlib.sha256(raw_inputs[0]).hexdigest(),
+                        "metadata": {str(k): str(v)[:2048] for k, v in list((reader.metadata or {}).items())[:100]},
+                        "sizes": [[float(p.mediabox.width), float(p.mediabox.height)] for p in reader.pages]}
+            if operation == "pdf_preview":
+                import base64
+                import pypdfium2 as pdfium
+                index = bounded_int(job.get("page", 0), 0, len(reader.pages) - 1, "Page")
+                with pdfium.PdfDocument(raw_inputs[0], password=password) as document:
+                    page = document[index]
+                    try:
+                        width, height = page.get_size()
+                        if width <= 0 or height <= 0:
+                            raise JobError("Invalid page size.")
+                        bitmap = page.render(scale=min(1, 900 / max(width, height)))
+                        try:
+                            image = bitmap.to_pil()
+                            preview = io.BytesIO()
+                            image.save(preview, "PNG")
+                        finally:
+                            bitmap.close()
+                    finally:
+                        page.close()
+                return {"ok": True, "preview": base64.b64encode(preview.getvalue()).decode("ascii"), "page": index}
+            pages_processed = len(selected) if operation not in {"pdf_merge", "pdf_organize"} else pages_processed
             if operation in {"pdf_to_png", "pdf_to_jpeg"}:
                 import pypdfium2 as pdfium
                 if pages_processed > MAX_RENDER_PAGES:
                     raise JobError("Image export is limited to 50 PDF pages per job.")
                 dpi = bounded_int(job.get("dpi", 150), 72, 300, "DPI")
-                document = pdfium.PdfDocument(raw_inputs[0], password=job.get("input_password", ""))
+                document = pdfium.PdfDocument(raw_inputs[0], password=password)
                 try:
-                    for index in range(len(document)):
+                    for index in selected:
                         page = document[index]
                         try:
                             width, height = page.get_size()
@@ -241,10 +281,10 @@ def run_document_job(job):
             elif operation == "pdf_to_text":
                 # PDFium extracts text without expanding pypdf content streams in Python.
                 import pypdfium2 as pdfium
-                document = pdfium.PdfDocument(raw_inputs[0], password=job.get("input_password", ""))
+                document = pdfium.PdfDocument(raw_inputs[0], password=password)
                 try:
                     def write(stream):
-                        for index in range(len(document)):
+                        for index in selected:
                             page = document[index]
                             try:
                                 text_page = page.get_textpage()
@@ -260,7 +300,8 @@ def run_document_job(job):
                     document.close()
             elif operation == "pdf_extract":
                 count = 0
-                for page in reader.pages:
+                for index in selected:
+                    page = reader.pages[index]
                     for image in page.images:
                         count += 1
                         # Decode/rebuild embedded images; never trust their suggested names.
@@ -274,15 +315,31 @@ def run_document_job(job):
                 if not count:
                     raise JobError("No extractable images found in this PDF.")
             elif operation == "pdf_split":
-                for index, page in enumerate(reader.pages):
+                for index in selected:
+                    page = reader.pages[index]
                     writer = PdfWriter()
                     writer.add_page(page)
                     outputs.add(".pdf", writer.write, f" - page {index + 1:03}")
             else:
                 writer = PdfWriter()
-                for item in readers:
-                    for page in item.pages:
-                        writer.add_page(page)
+                if operation == "pdf_organize":
+                    plan = job.get("page_plan")
+                    if not isinstance(plan, list) or not 1 <= len(plan) <= MAX_PAGES:
+                        raise JobError("Keep 1–200 pages in the output.")
+                    for entry in plan:
+                        if not isinstance(entry, list) or len(entry) != 3:
+                            raise JobError("Invalid page arrangement.")
+                        source_index = bounded_int(entry[0], 0, len(readers) - 1, "Document")
+                        page_index = bounded_int(entry[1], 0, len(readers[source_index].pages) - 1, "Page")
+                        rotation = entry[2]
+                        if type(rotation) is not int or rotation not in {0, 90, 180, 270}:
+                            raise JobError("Invalid page rotation.")
+                        writer.add_page(readers[source_index].pages[page_index]).rotate(rotation)
+                    pages_processed = len(plan)
+                else:
+                    for item in readers:
+                        for index in (range(len(item.pages)) if operation == "pdf_merge" else selected):
+                            writer.add_page(item.pages[index])
                 if operation == "pdf_rotate":
                     degrees = job.get("degrees", 90)
                     if type(degrees) is not int or degrees not in {90, 180, 270}:
@@ -303,6 +360,11 @@ def run_document_job(job):
                     for page in writer.pages:
                         if "/Metadata" in page:
                             del page["/Metadata"]
+                elif operation == "pdf_edit_metadata":
+                    values = job.get("metadata", {})
+                    if not isinstance(values, dict) or any(k not in {"/Title", "/Author", "/Subject", "/Keywords"} or not isinstance(v, str) or len(v) > 2048 for k, v in values.items()):
+                        raise JobError("Invalid PDF metadata fields.")
+                    writer.add_metadata(values)
                 outputs.add(".pdf", writer.write)
         return {"ok": True, "output": str(outputs.paths[0].resolve()),
                 "outputs": [str(path.resolve()) for path in outputs.paths], "identities": outputs.identities,

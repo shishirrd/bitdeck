@@ -28,6 +28,7 @@ def main(argv=None):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from .app import create_application
     application = create_application()
+    application.setQuitOnLastWindowClosed(False)
     records = []
 
     def run(request):
@@ -69,7 +70,37 @@ def main(argv=None):
             merged = run({"operation": "pdf_merge", "source": pdf, "sources": [pdf, pdf]})
             split = run({"operation": "pdf_split", "source": merged["output"]})
             assert len(split["outputs"]) == 2
-            run({"operation": "pdf_protect", "source": pdf, "password": "packaged-test-password"})
+            protected = run({"operation": "pdf_protect", "source": pdf, "password": "packaged-test-password"})
+            info = run({"operation": "pdf_inspect", "source": protected["output"], "input_password": "packaged-test-password"})
+            assert info["pages"] == 1
+            run({"operation": "pdf_preview", "source": protected["output"], "input_password": "packaged-test-password", "page": 0})
+            run({"operation": "pdf_unlock", "source": protected["output"], "input_password": "packaged-test-password"})
+            arranged = run({"operation": "pdf_organize", "source": merged["output"], "page_plan": [[0, 1, 90], [0, 0, 0]]})
+            run({"operation": "pdf_split", "source": arranged["output"], "page_range": "2"})
+            run({"operation": "pdf_edit_metadata", "source": pdf, "metadata": {"/Title": "Packaged controls"}})
+            edited = run({"operation": "export", "source": str(image), "output_dir": str(root / "out"),
+                "crop": [0, 0, .5, 1], "rotation": 90, "flip_horizontal": True,
+                "annotations": [{"kind": "arrow", "box": [.1, .1, .4, .4], "color": "#ffcc00", "width": 2}]})
+            assert (edited["width"], edited["height"]) == (24, 16)
+            # Import and construct the new controls in the real frozen GUI.
+            from .batch import BatchWindow
+            from .pdf_ui import PDFWindow
+            from .app import MainWindow
+            batch = BatchWindow()
+            controls = PDFWindow(batch)
+            editor = MainWindow()
+            editor.show_tools()
+            editor.tools.hide()
+            editor.closing = True
+            editor.close()
+            controls.close()
+            batch.close()
+            editor.deleteLater()
+            controls.deleteLater()
+            batch.deleteLater()
+            application.sendPostedEvents(None, QEvent.DeferredDelete)
+            application.processEvents()
+            records.append({"operation": "editing_controls_construct", "ok": True})
             # A simple uncompressed 24-bit BMP in a real .wsz, generated using
             # standard Python only: verifies skin parsing dependencies in the worker.
             width, height = 275, 116
